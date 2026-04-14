@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import Vant from 'vant'
 import 'vant/lib/index.css'
+import './styles/design-tokens.css'
 import './style.css'
 import App from './App.vue'
 

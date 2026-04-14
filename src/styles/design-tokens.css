@@ -1,0 +1,25 @@
+/* 与 design.md 对齐的全局设计变量 */
+:root {
+  --color-primary: #f10c0c;
+  --color-page-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text: #0f172a;
+  --color-text-strong: #020617;
+  --color-text-secondary: #64748b;
+  --color-placeholder: #94a3b8;
+  --color-line: #e8edf2;
+  --color-segmented-track: #f1f5f9;
+  --color-focus-ring: #2563eb;
+  --radius-control: 14px;
+  --radius-nested: 10px;
+  --radius-panel: 24px;
+  --font-sans:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+}

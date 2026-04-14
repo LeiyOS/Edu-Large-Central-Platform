@@ -3,8 +3,12 @@ import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { showToast } from 'vant'
 import wecomIconUrl from '../assets/WeCom.svg?url'
-import logoUrl from '../assets/logo666.png'
+import logoUrl from '../assets/logo.png'
 import brandBgUrl from '../assets/bg_img.png'
+
+const emit = defineEmits<{
+  'logged-in': []
+}>()
 
 /** 登录按钮与分段 Tab 选中文字 */
 const LOGIN_BUTTON_COLOR = '#F10C0C'
@@ -28,7 +32,8 @@ function onSubmitPassword() {
     showToast('请填写手机号和密码')
     return
   }
-  showToast('登录请求已提交（示例）')
+  showToast('登录成功')
+  emit('logged-in')
 }
 
 function togglePasswordVisible() {
@@ -130,7 +135,6 @@ function togglePasswordVisible() {
 
                 <div class="submit-wrap">
                   <van-button
-                    round
                     block
                     native-type="submit"
                     class="submit-btn"
@@ -175,7 +179,9 @@ function togglePasswordVisible() {
 
 <style scoped>
 .login-page {
+  position: relative;
   display: flex;
+  flex-direction: row;
   align-items: stretch;
   flex: 1 1 auto;
   width: 100%;
@@ -195,14 +201,17 @@ function togglePasswordVisible() {
   background: #f8fafc;
 }
 
-/* ≈ 45% / 55% 分栏；登录块在视口垂直方向几何居中（对称内边距 + flex 居中） */
+/* 50% / 50% 分栏；左侧登录块 */
 .login-page__form-side {
   --form-side-pad-y: max(
     clamp(1.5rem, 3vw, 2.5rem),
     env(safe-area-inset-top, 0px),
     env(safe-area-inset-bottom, 0px)
   );
-  flex: 9;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 50%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -231,22 +240,6 @@ function togglePasswordVisible() {
   margin-bottom: 1.5rem;
 }
 
-/* 固定在视口左上角：基准 25px 再上移 10px、左移 8px，叠加 safe-area */
-.login-panel__logo {
-  position: fixed;
-  top: calc(15px + env(safe-area-inset-top, 0px));
-  left: calc(17px + env(safe-area-inset-left, 0px));
-  z-index: 1000;
-  display: block;
-  height: 40px;
-  width: auto;
-  max-width: min(280px, calc(100vw - 50px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
-  margin: 0;
-  object-fit: contain;
-  object-position: left center;
-  pointer-events: none;
-}
-
 .login-panel__title {
   margin: 0 0 calc(0.35rem + 6px);
   font-size: calc(clamp(1.75rem, 2.5vw, 2.125rem) - 2px);
@@ -268,37 +261,13 @@ function togglePasswordVisible() {
   box-sizing: border-box;
 }
 
-.login-panel__tab-panels {
-  position: relative;
-  width: 100%;
-  /* 容纳表单标签行高、校验文案与按钮圆角/阴影，避免被当成滚动盒裁切 */
-  min-height: 26rem;
-  height: 30rem;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  overflow: visible;
-}
-
-.login-panel__tab-panels > .tab-pad {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  box-sizing: border-box;
-}
-
-/* 浅色槽 + 蓝激活态，贴近参考图主色 */
 .segmented__track {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   padding: 4px;
   background: #f1f5f9;
-  border-radius: 999px;
+  border-radius: 14px;
   box-sizing: border-box;
 }
 
@@ -309,7 +278,7 @@ function togglePasswordVisible() {
   height: calc(100% - 8px);
   width: calc((100% - 8px) / 2);
   background: #ffffff;
-  border-radius: 999px;
+  border-radius: 10px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   transition: transform 0.28s cubic-bezier(0.25, 0.8, 0.25, 1);
   pointer-events: none;
@@ -333,7 +302,7 @@ function togglePasswordVisible() {
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
-  border-radius: 999px;
+  border-radius: 10px;
   transition: color 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
@@ -345,6 +314,80 @@ function togglePasswordVisible() {
 
 .segmented__tab--active {
   color: v-bind(LOGIN_BUTTON_COLOR);
+}
+
+/* 右侧品牌图区域 */
+.login-page__brand-side {
+  flex: 0 0 50%;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: calc(30px + env(safe-area-inset-top, 0px))
+    calc(30px + env(safe-area-inset-right, 0px))
+    calc(30px + env(safe-area-inset-bottom, 0px))
+    calc(30px + env(safe-area-inset-left, 0px));
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.brand-frame {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.brand-frame__grid {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 固定在视口左上角，叠加 safe-area */
+.login-panel__logo {
+  position: fixed;
+  top: calc(15px + env(safe-area-inset-top, 0px));
+  left: calc(17px + env(safe-area-inset-left, 0px));
+  right: auto;
+  z-index: 1000;
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: min(280px, calc(100vw - 50px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  margin: 0;
+  object-fit: contain;
+  object-position: left center;
+  pointer-events: none;
+}
+
+.login-panel__tab-panels {
+  position: relative;
+  width: 100%;
+  min-height: 26rem;
+  height: 30rem;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.login-panel__tab-panels > .tab-pad {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .tab-pad {
@@ -378,7 +421,6 @@ function togglePasswordVisible() {
   padding-top: 1px;
 }
 
-/* 图标 + 输入同一行：外包 flex，避免 Vant 把 left-icon 放在 cell 单列导致上下错位 */
 .line-input-wrap {
   display: flex;
   flex-direction: row;
@@ -460,7 +502,6 @@ function togglePasswordVisible() {
   border-bottom-color: var(--line-border-focus);
 }
 
-/* 图标在 cell 外：底边与聚焦态画在外层 .line-input-wrap 上 */
 .line-field.line-field--in-wrap {
   flex: 1;
   min-width: 0;
@@ -503,7 +544,6 @@ function togglePasswordVisible() {
   padding: 0 4px;
 }
 
-/* 密码可见性图标：加大与输入框间距，避免字形左侧被父级裁切 */
 .line-field.line-field--in-wrap :deep(.van-field__right-icon) {
   padding: 0 6px 0 14px;
   overflow: visible;
@@ -533,6 +573,7 @@ function togglePasswordVisible() {
 }
 
 .submit-btn {
+  --van-button-radius: 14px;
   width: 100%;
   box-sizing: border-box;
   height: 52px;
@@ -540,6 +581,7 @@ function togglePasswordVisible() {
   font-weight: 600;
   letter-spacing: 0.02em;
   border: none;
+  border-radius: 14px;
   box-shadow: none;
   transition:
     opacity 0.2s ease,
@@ -615,43 +657,11 @@ function togglePasswordVisible() {
   margin-right: auto;
 }
 
-/* 右侧整体：外圈 30px 纯白留白 + 安全区，内层铺满为单块大圆角深色卡 */
-.login-page__brand-side {
-  flex: 11;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: calc(30px + env(safe-area-inset-top, 0px))
-    calc(30px + env(safe-area-inset-right, 0px))
-    calc(30px + env(safe-area-inset-bottom, 0px))
-    calc(30px + env(safe-area-inset-left, 0px));
-  background: #ffffff;
-  box-sizing: border-box;
-}
-
-.brand-frame {
-  position: relative;
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: none;
-}
-
-.brand-frame__grid {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
 @media (max-width: 768px) {
   .login-page {
     flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
     min-height: 100svh;
     min-height: 100dvh;
   }
@@ -662,19 +672,26 @@ function togglePasswordVisible() {
       env(safe-area-inset-top, 0px),
       env(safe-area-inset-bottom, 0px)
     );
-    /* 占满「顶部 ～ 品牌区」之间的剩余高度，才能把登录块垂直居中 */
     flex: 1 1 auto;
     min-height: 0;
+    width: 100%;
+    flex-basis: auto;
+    max-width: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--form-side-pad-y) 1.25rem;
+    padding: calc(var(--form-side-pad-y) + 52px) 1.25rem var(--form-side-pad-y);
     overflow-y: auto;
+    z-index: 1;
   }
 
   .login-panel {
     max-width: none;
+  }
+
+  .login-panel__title {
+    font-size: 20px;
   }
 
   .login-panel__tab-panels {
