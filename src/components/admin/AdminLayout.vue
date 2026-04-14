@@ -47,11 +47,11 @@ const sidebarLogoSrc = computed(() =>
 )
 
 const topNav = [
-  { label: '教学', active: true },
+  { label: '教学' },
   { label: '教务' },
   { label: '运营' },
   { label: '电商' },
-  { label: '系统' },
+  { label: '系统', active: true },
 ]
 
 const sidebarGroups = [

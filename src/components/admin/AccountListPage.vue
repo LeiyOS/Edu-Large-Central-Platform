@@ -2295,11 +2295,13 @@ function onConfirmAdd() {
   height: 18px;
   flex-shrink: 0;
   color: #94a3b8;
+  /* 与文字区视觉对齐，略上移，不改变水平位置 */
+  transform: translateY(-7px);
   transition: transform 0.2s ease;
 }
 
 .add-account-float--role-picker-open .add-account-float__trigger-chevron {
-  transform: rotate(180deg);
+  transform: translateY(-7px) rotate(180deg);
 }
 
 .add-account-float--select .add-account-float__label {
