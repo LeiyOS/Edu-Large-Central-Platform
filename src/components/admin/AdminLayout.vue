@@ -4,8 +4,10 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import logoUrl from '../../assets/logo.png'
 import logoNorUrl from '../../assets/logo_nor.png'
 
-defineEmits<{
+const emit = defineEmits<{
   logout: []
+  /** 侧栏菜单文案，用于主区切换页面 */
+  'sidebar-nav': [label: string]
 }>()
 
 /** 小于此宽度时侧栏固定为仅图标（与点击收起一致） */
@@ -54,22 +56,39 @@ const topNav = [
   { label: '系统', active: true },
 ]
 
-const sidebarGroups = [
+const sidebarGroupsSource = [
   {
     title: '用户管理',
     items: [
-      { label: '账号管理', icon: 'lucide:circle-user', active: true },
-      { label: '角色管理', icon: 'lucide:shield-check', active: false },
+      { label: '账号管理', icon: 'lucide:circle-user' },
+      { label: '角色管理', icon: 'lucide:shield-check' },
     ],
   },
   {
     title: '平台配置',
     items: [
-      { label: '菜单管理', icon: 'lucide:square-menu', active: false },
-      { label: '组织管理', icon: 'lucide:users-round', active: false },
+      { label: '菜单管理', icon: 'lucide:square-menu' },
+      { label: '组织管理', icon: 'lucide:users-round' },
     ],
   },
-]
+] as const
+
+const activeSidebarLabel = ref('组织管理')
+
+const sidebarGroups = computed(() =>
+  sidebarGroupsSource.map((group) => ({
+    title: group.title,
+    items: group.items.map((item) => ({
+      ...item,
+      active: item.label === activeSidebarLabel.value,
+    })),
+  })),
+)
+
+function onSidebarItemClick(label: string) {
+  activeSidebarLabel.value = label
+  emit('sidebar-nav', label)
+}
 </script>
 
 <template>
@@ -121,6 +140,7 @@ const sidebarGroups = [
                   class="admin-sidebar__item"
                   :class="{ 'admin-sidebar__item--active': item.active }"
                   :title="item.label"
+                  @click="onSidebarItemClick(item.label)"
                 >
                   <Icon :icon="item.icon" class="admin-sidebar__item-ico" aria-hidden="true" />
                   <span class="admin-sidebar__item-text">
@@ -520,7 +540,8 @@ const sidebarGroups = [
   cursor: pointer;
   transition:
     background 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .admin-sidebar__item:hover {
