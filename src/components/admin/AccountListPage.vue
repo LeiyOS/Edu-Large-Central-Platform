@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
+import { showToast } from 'vant'
 
 const PRIMARY = '#F10C0C'
 const LINE = '#e8edf2'
@@ -224,6 +225,9 @@ function resetFilters() {
     role: '',
     status: '',
   }
+  deptMenuOpen.value = false
+  filterRoleMenuOpen.value = false
+  filterStatusMenuOpen.value = false
   page.value = 1
 }
 
@@ -237,6 +241,394 @@ const filtersExpanded = ref(false)
 
 function toggleFiltersExpanded() {
   filtersExpanded.value = !filtersExpanded.value
+}
+
+/** 新增账号弹窗 */
+const showAddModal = ref(false)
+
+const addForm = ref({
+  account: '',
+  employeeName: '',
+  phoneNumber: '',
+  roleGroup: '管理员组',
+})
+
+/** 新增账号 — 角色自定义下拉选项 */
+const addRoleMenuItems = [
+  '管理员组',
+  '教师组',
+  '教务组',
+  '讲师组',
+  '运营组',
+  '客服组',
+] as const
+
+const roleGroupToRole: Record<string, string> = {
+  管理员组: '管理员',
+  教师组: '教师',
+  教务组: '教务',
+  讲师组: '讲师',
+  运营组: '运营',
+  客服组: '客服',
+}
+
+/** 筛选区 — 部门选项（与新增账号角色面板同一样式） */
+const deptMenuItems: { value: string; label: string }[] = [
+  { value: '', label: '全部' },
+  { value: `${DEPT_PREFIX}教研部`, label: `${DEPT_PREFIX}教研部` },
+  { value: `${DEPT_PREFIX}教务部`, label: `${DEPT_PREFIX}教务部` },
+  { value: `${DEPT_PREFIX}运营中心`, label: `${DEPT_PREFIX}运营中心` },
+  { value: `${DEPT_PREFIX}客服组`, label: `${DEPT_PREFIX}客服组` },
+]
+
+const deptMenuOpen = ref(false)
+const deptSelectWrapRef = ref<HTMLElement | null>(null)
+const deptTriggerRef = ref<HTMLButtonElement | null>(null)
+const deptPanelRef = ref<HTMLElement | null>(null)
+const deptPanelStyle = ref<Record<string, string>>({})
+
+function applyPanelStyleBelowTrigger(
+  triggerEl: HTMLElement | null,
+  styleRef: typeof deptPanelStyle,
+  panelEl: HTMLElement | null = null,
+) {
+  if (!triggerEl) {
+    styleRef.value = {}
+    return
+  }
+  const r = triggerEl.getBoundingClientRect()
+  const gap = 8
+  const triggerW = Math.round(r.width)
+  const centerX = r.left + r.width / 2
+  const margin = 12
+  let leftPx = centerX
+  if (panelEl) {
+    const pw = panelEl.getBoundingClientRect().width
+    if (pw > 0) {
+      const half = pw / 2
+      leftPx = Math.max(margin + half, Math.min(centerX, window.innerWidth - margin - half))
+    }
+  }
+  styleRef.value = {
+    position: 'fixed',
+    top: `${Math.round(r.bottom + gap)}px`,
+    left: `${Math.round(leftPx)}px`,
+    transform: 'translateX(-50%)',
+    /* 至少与触发器同宽；按内容加宽；水平以触发器中心对齐 */
+    minWidth: `${triggerW}px`,
+    width: 'max-content',
+    maxWidth: 'calc(100vw - 24px)',
+    boxSizing: 'border-box',
+    zIndex: '10000',
+  }
+}
+
+/** 首帧后面板宽可能未稳定，再跑一帧以便居中的同时做视口夹紧 */
+function runPanelPositionSync(
+  triggerEl: HTMLElement | null,
+  styleRef: typeof deptPanelStyle,
+  panelEl: HTMLElement | null,
+) {
+  const run = () => applyPanelStyleBelowTrigger(triggerEl, styleRef, panelEl)
+  run()
+  requestAnimationFrame(run)
+}
+
+const deptDisplayText = computed(() => {
+  const d = filters.value.dept
+  if (d === '') return '全部'
+  return d
+})
+
+function updateDeptPanelPosition() {
+  runPanelPositionSync(deptTriggerRef.value, deptPanelStyle, deptPanelRef.value)
+}
+
+async function toggleDeptMenu() {
+  deptMenuOpen.value = !deptMenuOpen.value
+  if (deptMenuOpen.value) {
+    roleMenuOpen.value = false
+    filterRoleMenuOpen.value = false
+    filterStatusMenuOpen.value = false
+    await nextTick()
+    updateDeptPanelPosition()
+  }
+}
+
+function selectDeptItem(value: string) {
+  filters.value.dept = value
+  deptMenuOpen.value = false
+}
+
+/** 筛选区 — 角色 / 状态（与部门同交互与面板样式） */
+const filterRoleMenuItems: { value: string; label: string }[] = [
+  { value: '', label: '全部' },
+  { value: '教师', label: '教师' },
+  { value: '教务', label: '教务' },
+  { value: '管理员', label: '管理员' },
+  { value: '客服', label: '客服' },
+  { value: '讲师', label: '讲师' },
+]
+
+const filterStatusMenuItems: { value: string; label: string }[] = [
+  { value: '', label: '全部' },
+  { value: 'ok', label: '正常' },
+  { value: 'disabled', label: '已禁用' },
+  { value: 'left', label: '已离职' },
+]
+
+const filterRoleMenuOpen = ref(false)
+const filterRoleWrapRef = ref<HTMLElement | null>(null)
+const filterRoleTriggerRef = ref<HTMLButtonElement | null>(null)
+const filterRolePanelRef = ref<HTMLElement | null>(null)
+const filterRolePanelStyle = ref<Record<string, string>>({})
+
+const filterStatusMenuOpen = ref(false)
+const filterStatusWrapRef = ref<HTMLElement | null>(null)
+const filterStatusTriggerRef = ref<HTMLButtonElement | null>(null)
+const filterStatusPanelRef = ref<HTMLElement | null>(null)
+const filterStatusPanelStyle = ref<Record<string, string>>({})
+
+const filterRoleDisplayText = computed(() => {
+  const v = filters.value.role
+  if (v === '') return '全部'
+  return v
+})
+
+const filterStatusDisplayText = computed(() => {
+  const v = filters.value.status
+  const hit = filterStatusMenuItems.find((i) => i.value === v)
+  return hit?.label ?? '全部'
+})
+
+function updateFilterRolePanelPosition() {
+  runPanelPositionSync(
+    filterRoleTriggerRef.value,
+    filterRolePanelStyle,
+    filterRolePanelRef.value,
+  )
+}
+
+function updateFilterStatusPanelPosition() {
+  runPanelPositionSync(
+    filterStatusTriggerRef.value,
+    filterStatusPanelStyle,
+    filterStatusPanelRef.value,
+  )
+}
+
+async function toggleFilterRoleMenu() {
+  filterRoleMenuOpen.value = !filterRoleMenuOpen.value
+  if (filterRoleMenuOpen.value) {
+    deptMenuOpen.value = false
+    filterStatusMenuOpen.value = false
+    roleMenuOpen.value = false
+    await nextTick()
+    updateFilterRolePanelPosition()
+  }
+}
+
+async function toggleFilterStatusMenu() {
+  filterStatusMenuOpen.value = !filterStatusMenuOpen.value
+  if (filterStatusMenuOpen.value) {
+    deptMenuOpen.value = false
+    filterRoleMenuOpen.value = false
+    roleMenuOpen.value = false
+    await nextTick()
+    updateFilterStatusPanelPosition()
+  }
+}
+
+function selectFilterRoleItem(value: string) {
+  filters.value.role = value
+  filterRoleMenuOpen.value = false
+}
+
+function selectFilterStatusItem(value: string) {
+  filters.value.status = value
+  filterStatusMenuOpen.value = false
+}
+
+function resetAddForm() {
+  addForm.value = {
+    account: '',
+    employeeName: '',
+    phoneNumber: '',
+    roleGroup: '管理员组',
+  }
+}
+
+const roleMenuOpen = ref(false)
+const roleSelectWrapRef = ref<HTMLElement | null>(null)
+const roleTriggerRef = ref<HTMLButtonElement | null>(null)
+const rolePanelRef = ref<HTMLElement | null>(null)
+
+/** Teleport 到 body 时的 fixed 坐标（避免落在弹窗滚动层内被裁切） */
+const rolePanelStyle = ref<Record<string, string>>({})
+
+function updateRolePanelPosition() {
+  runPanelPositionSync(roleTriggerRef.value, rolePanelStyle, rolePanelRef.value)
+}
+
+async function toggleRoleMenu() {
+  roleMenuOpen.value = !roleMenuOpen.value
+  if (roleMenuOpen.value) {
+    deptMenuOpen.value = false
+    filterRoleMenuOpen.value = false
+    filterStatusMenuOpen.value = false
+    await nextTick()
+    updateRolePanelPosition()
+  }
+}
+
+function selectRoleMenu(value: string) {
+  addForm.value.roleGroup = value
+  roleMenuOpen.value = false
+}
+
+function onGlobalDropdownDocClick(e: MouseEvent) {
+  const el = e.target instanceof Node ? e.target : null
+  if (!el) return
+  if (roleMenuOpen.value) {
+    if (!roleSelectWrapRef.value?.contains(el) && !rolePanelRef.value?.contains(el)) {
+      roleMenuOpen.value = false
+    }
+  }
+  if (deptMenuOpen.value) {
+    if (!deptSelectWrapRef.value?.contains(el) && !deptPanelRef.value?.contains(el)) {
+      deptMenuOpen.value = false
+    }
+  }
+  if (filterRoleMenuOpen.value) {
+    if (
+      !filterRoleWrapRef.value?.contains(el) &&
+      !filterRolePanelRef.value?.contains(el)
+    ) {
+      filterRoleMenuOpen.value = false
+    }
+  }
+  if (filterStatusMenuOpen.value) {
+    if (
+      !filterStatusWrapRef.value?.contains(el) &&
+      !filterStatusPanelRef.value?.contains(el)
+    ) {
+      filterStatusMenuOpen.value = false
+    }
+  }
+}
+
+function onDropdownViewportChange() {
+  if (roleMenuOpen.value) updateRolePanelPosition()
+  if (deptMenuOpen.value) updateDeptPanelPosition()
+  if (filterRoleMenuOpen.value) updateFilterRolePanelPosition()
+  if (filterStatusMenuOpen.value) updateFilterStatusPanelPosition()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onGlobalDropdownDocClick, true)
+  window.addEventListener('scroll', onDropdownViewportChange, true)
+  window.addEventListener('resize', onDropdownViewportChange)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onGlobalDropdownDocClick, true)
+  window.removeEventListener('scroll', onDropdownViewportChange, true)
+  window.removeEventListener('resize', onDropdownViewportChange)
+})
+
+watch(roleMenuOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    updateRolePanelPosition()
+  }
+})
+
+watch(deptMenuOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    updateDeptPanelPosition()
+  }
+})
+
+watch(filterRoleMenuOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    updateFilterRolePanelPosition()
+  }
+})
+
+watch(filterStatusMenuOpen, async (open) => {
+  if (open) {
+    await nextTick()
+    updateFilterStatusPanelPosition()
+  }
+})
+
+watch(showAddModal, (open) => {
+  if (open) {
+    resetAddForm()
+    deptMenuOpen.value = false
+    filterRoleMenuOpen.value = false
+    filterStatusMenuOpen.value = false
+  } else {
+    roleMenuOpen.value = false
+  }
+})
+
+function openAddModal() {
+  showAddModal.value = true
+}
+
+function closeAddModal() {
+  showAddModal.value = false
+}
+
+/** 账号、员工姓名、手机号均填写后视为填完，确认按钮恢复不透明 */
+const isAddFormFilled = computed(() => {
+  const f = addForm.value
+  return (
+    f.account.trim() !== '' &&
+    f.employeeName.trim() !== '' &&
+    f.phoneNumber.trim() !== ''
+  )
+})
+
+function onConfirmAdd() {
+  const acc = addForm.value.account.trim()
+  if (!acc) {
+    showToast('请填写登录账号')
+    return
+  }
+  if (!addForm.value.employeeName.trim()) {
+    showToast('请填写员工姓名')
+    return
+  }
+  if (!addForm.value.phoneNumber.trim()) {
+    showToast('请填写手机号码')
+    return
+  }
+  const nextNum =
+    allRows.value.reduce((max, r) => {
+      const n = parseInt(r.id, 10)
+      return Number.isFinite(n) ? Math.max(max, n) : max
+    }, 100000) + 1
+  const role = roleGroupToRole[addForm.value.roleGroup] ?? '管理员'
+  allRows.value = [
+    ...allRows.value,
+    {
+      id: String(nextNum),
+      account: acc,
+      name: addForm.value.employeeName.trim() || '—',
+      phone: addForm.value.phoneNumber.trim() || '—',
+      dept: `${DEPT_PREFIX}教研部`,
+      entId: 'E90821',
+      deptLead: '—',
+      role,
+      status: 'ok',
+    },
+  ]
+  showToast('添加成功')
+  closeAddModal()
+  page.value = 1
 }
 
 </script>
@@ -288,15 +680,29 @@ function toggleFiltersExpanded() {
               </div>
             </div>
             <div class="filter-field">
-              <div class="filter-field__line filter-field__line--select">
-                <label class="filter-field__label" for="f-dept">部门</label>
-                <select id="f-dept" v-model="filters.dept" class="filter-field__select">
-                  <option value="">全部</option>
-                  <option :value="`${DEPT_PREFIX}教研部`">{{ DEPT_PREFIX }}教研部</option>
-                  <option :value="`${DEPT_PREFIX}教务部`">{{ DEPT_PREFIX }}教务部</option>
-                  <option :value="`${DEPT_PREFIX}运营中心`">{{ DEPT_PREFIX }}运营中心</option>
-                  <option :value="`${DEPT_PREFIX}客服组`">{{ DEPT_PREFIX }}客服组</option>
-                </select>
+              <div
+                ref="deptSelectWrapRef"
+                class="filter-field__line filter-field__line--select filter-field--filter-picker"
+                :class="{ 'filter-field--filter-picker-open': deptMenuOpen }"
+              >
+                <label class="filter-field__label" for="f-dept-trigger">部门</label>
+                <button
+                  id="f-dept-trigger"
+                  ref="deptTriggerRef"
+                  type="button"
+                  class="filter-field__select-trigger"
+                  aria-haspopup="listbox"
+                  :aria-expanded="deptMenuOpen"
+                  aria-label="选择部门"
+                  @click.stop="toggleDeptMenu"
+                >
+                  <span class="filter-field__select-trigger-text">{{ deptDisplayText }}</span>
+                  <Icon
+                    icon="lucide:chevron-down"
+                    class="filter-field__select-trigger-chevron"
+                    aria-hidden="true"
+                  />
+                </button>
               </div>
             </div>
             </div>
@@ -325,27 +731,59 @@ function toggleFiltersExpanded() {
           >
             <div class="account-filter__fields account-filter__fields--extra">
               <div class="filter-field">
-                <div class="filter-field__line filter-field__line--select">
-                  <label class="filter-field__label" for="f-role">角色</label>
-                  <select id="f-role" v-model="filters.role" class="filter-field__select">
-                    <option value="">全部</option>
-                    <option value="教师">教师</option>
-                    <option value="教务">教务</option>
-                    <option value="管理员">管理员</option>
-                    <option value="客服">客服</option>
-                    <option value="讲师">讲师</option>
-                  </select>
+                <div
+                  ref="filterRoleWrapRef"
+                  class="filter-field__line filter-field__line--select filter-field--filter-picker"
+                  :class="{ 'filter-field--filter-picker-open': filterRoleMenuOpen }"
+                >
+                  <label class="filter-field__label" for="f-role-trigger">角色</label>
+                  <button
+                    id="f-role-trigger"
+                    ref="filterRoleTriggerRef"
+                    type="button"
+                    class="filter-field__select-trigger"
+                    aria-haspopup="listbox"
+                    :aria-expanded="filterRoleMenuOpen"
+                    aria-label="选择角色"
+                    @click.stop="toggleFilterRoleMenu"
+                  >
+                    <span class="filter-field__select-trigger-text">{{
+                      filterRoleDisplayText
+                    }}</span>
+                    <Icon
+                      icon="lucide:chevron-down"
+                      class="filter-field__select-trigger-chevron"
+                      aria-hidden="true"
+                    />
+                  </button>
                 </div>
               </div>
               <div class="filter-field">
-                <div class="filter-field__line filter-field__line--select">
-                  <label class="filter-field__label" for="f-status">状态</label>
-                  <select id="f-status" v-model="filters.status" class="filter-field__select">
-                    <option value="">全部</option>
-                    <option value="ok">正常</option>
-                    <option value="disabled">已禁用</option>
-                    <option value="left">已离职</option>
-                  </select>
+                <div
+                  ref="filterStatusWrapRef"
+                  class="filter-field__line filter-field__line--select filter-field--filter-picker"
+                  :class="{ 'filter-field--filter-picker-open': filterStatusMenuOpen }"
+                >
+                  <label class="filter-field__label" for="f-status-trigger">状态</label>
+                  <button
+                    id="f-status-trigger"
+                    ref="filterStatusTriggerRef"
+                    type="button"
+                    class="filter-field__select-trigger"
+                    aria-haspopup="listbox"
+                    :aria-expanded="filterStatusMenuOpen"
+                    aria-label="选择状态"
+                    @click.stop="toggleFilterStatusMenu"
+                  >
+                    <span class="filter-field__select-trigger-text">{{
+                      filterStatusDisplayText
+                    }}</span>
+                    <Icon
+                      icon="lucide:chevron-down"
+                      class="filter-field__select-trigger-chevron"
+                      aria-hidden="true"
+                    />
+                  </button>
                 </div>
               </div>
             </div>
@@ -359,6 +797,114 @@ function toggleFiltersExpanded() {
       </div>
     </section>
 
+    <Teleport to="body">
+      <div
+        v-show="deptMenuOpen"
+        ref="deptPanelRef"
+        class="add-account-role-panel"
+        role="listbox"
+        aria-label="部门"
+        :style="deptPanelStyle"
+        @click.stop
+      >
+        <ul class="add-account-role-panel__list">
+          <li
+            v-for="item in deptMenuItems"
+            :key="item.value === '' ? '__all' : item.value"
+            role="option"
+            :aria-selected="filters.dept === item.value"
+            class="add-account-role-panel__option"
+            :class="{
+              'add-account-role-panel__option--active': filters.dept === item.value,
+            }"
+            @click="selectDeptItem(item.value)"
+          >
+            <div class="add-account-role-panel__option-text">
+              <span class="add-account-role-panel__title">{{ item.label }}</span>
+            </div>
+            <Icon
+              v-if="filters.dept === item.value"
+              icon="lucide:check"
+              class="add-account-role-panel__check"
+              aria-hidden="true"
+            />
+          </li>
+        </ul>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-show="filterRoleMenuOpen"
+        ref="filterRolePanelRef"
+        class="add-account-role-panel"
+        role="listbox"
+        aria-label="角色筛选"
+        :style="filterRolePanelStyle"
+        @click.stop
+      >
+        <ul class="add-account-role-panel__list">
+          <li
+            v-for="item in filterRoleMenuItems"
+            :key="item.value === '' ? '__all' : item.value"
+            role="option"
+            :aria-selected="filters.role === item.value"
+            class="add-account-role-panel__option"
+            :class="{
+              'add-account-role-panel__option--active': filters.role === item.value,
+            }"
+            @click="selectFilterRoleItem(item.value)"
+          >
+            <div class="add-account-role-panel__option-text">
+              <span class="add-account-role-panel__title">{{ item.label }}</span>
+            </div>
+            <Icon
+              v-if="filters.role === item.value"
+              icon="lucide:check"
+              class="add-account-role-panel__check"
+              aria-hidden="true"
+            />
+          </li>
+        </ul>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-show="filterStatusMenuOpen"
+        ref="filterStatusPanelRef"
+        class="add-account-role-panel"
+        role="listbox"
+        aria-label="状态筛选"
+        :style="filterStatusPanelStyle"
+        @click.stop
+      >
+        <ul class="add-account-role-panel__list">
+          <li
+            v-for="item in filterStatusMenuItems"
+            :key="item.value === '' ? '__all' : item.value"
+            role="option"
+            :aria-selected="filters.status === item.value"
+            class="add-account-role-panel__option"
+            :class="{
+              'add-account-role-panel__option--active': filters.status === item.value,
+            }"
+            @click="selectFilterStatusItem(item.value)"
+          >
+            <div class="add-account-role-panel__option-text">
+              <span class="add-account-role-panel__title">{{ item.label }}</span>
+            </div>
+            <Icon
+              v-if="filters.status === item.value"
+              icon="lucide:check"
+              class="add-account-role-panel__check"
+              aria-hidden="true"
+            />
+          </li>
+        </ul>
+      </div>
+    </Teleport>
+
     <section class="account-panel" aria-labelledby="account-list-title">
       <div class="account-panel__table-box">
         <div class="account-panel__head">
@@ -366,7 +912,11 @@ function toggleFiltersExpanded() {
             <h2 id="account-list-title" class="account-panel__title">账号列表</h2>
             <p class="account-panel__note">新创建账号修改密码：88888888</p>
           </div>
-          <button type="button" class="btn-primary btn-primary--ghost btn-primary--compact account-panel__add">
+          <button
+            type="button"
+            class="btn-primary btn-primary--ghost btn-primary--compact account-panel__add"
+            @click="openAddModal"
+          >
             <Icon icon="lucide:plus" class="btn-primary__icon" aria-hidden="true" />
             添加新账号
           </button>
@@ -464,6 +1014,156 @@ function toggleFiltersExpanded() {
         </div>
       </div>
     </section>
+
+    <van-popup
+      v-model:show="showAddModal"
+      round
+      position="center"
+      :overlay-style="{ background: 'rgba(15, 23, 42, 0.45)' }"
+      class="add-account-popup"
+      teleport="body"
+    >
+      <div
+        class="add-account-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-account-title"
+        @click.stop
+      >
+        <button
+          type="button"
+          class="add-account-modal__close"
+          aria-label="关闭"
+          @click="closeAddModal"
+        >
+          <Icon icon="lucide:x" class="add-account-modal__close-icon" aria-hidden="true" />
+        </button>
+        <div class="add-account-modal__intro">
+          <h2 id="add-account-title" class="add-account-modal__title">新增账号</h2>
+          <p class="add-account-form__hint">
+            为确保企业微信正常登录，账号请使用企微绑定的手机号
+          </p>
+        </div>
+
+        <form class="add-account-form" @submit.prevent="onConfirmAdd">
+          <div class="add-account-form__row">
+            <div class="add-account-float">
+              <input
+                id="add-modal-account"
+                v-model="addForm.account"
+                type="text"
+                class="add-account-float__input"
+                placeholder=" "
+                autocomplete="username"
+              />
+              <label class="add-account-float__label" for="add-modal-account">
+                账号<span class="add-account-float__req" aria-hidden="true">*</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="add-account-form__row">
+            <div class="add-account-float">
+              <input
+                id="add-modal-name"
+                v-model="addForm.employeeName"
+                type="text"
+                class="add-account-float__input"
+                placeholder=" "
+                autocomplete="name"
+              />
+              <label class="add-account-float__label" for="add-modal-name">员工姓名</label>
+            </div>
+          </div>
+
+          <div class="add-account-form__row">
+            <div class="add-account-float">
+              <input
+                id="add-modal-phone"
+                v-model="addForm.phoneNumber"
+                type="tel"
+                class="add-account-float__input"
+                placeholder=" "
+                autocomplete="tel"
+              />
+              <label class="add-account-float__label" for="add-modal-phone">手机号</label>
+            </div>
+          </div>
+
+          <div class="add-account-form__row">
+            <div
+              ref="roleSelectWrapRef"
+              class="add-account-float add-account-float--select add-account-float--role-picker"
+              :class="{ 'add-account-float--role-picker-open': roleMenuOpen }"
+            >
+              <button
+                id="add-modal-role"
+                ref="roleTriggerRef"
+                type="button"
+                class="add-account-float__trigger"
+                aria-haspopup="listbox"
+                :aria-expanded="roleMenuOpen"
+                @click.stop="toggleRoleMenu"
+              >
+                <span class="add-account-float__trigger-text">{{ addForm.roleGroup }}</span>
+                <Icon
+                  icon="lucide:chevron-down"
+                  class="add-account-float__trigger-chevron"
+                  aria-hidden="true"
+                />
+              </button>
+              <label class="add-account-float__label" for="add-modal-role">角色</label>
+            </div>
+          </div>
+
+          <Teleport to="body">
+            <div
+              v-show="roleMenuOpen"
+              ref="rolePanelRef"
+              class="add-account-role-panel"
+              role="listbox"
+              aria-label="角色列表"
+              :style="rolePanelStyle"
+              @click.stop
+            >
+              <ul class="add-account-role-panel__list">
+                <li
+                  v-for="opt in addRoleMenuItems"
+                  :key="opt"
+                  role="option"
+                  :aria-selected="addForm.roleGroup === opt"
+                  class="add-account-role-panel__option"
+                  :class="{
+                    'add-account-role-panel__option--active': addForm.roleGroup === opt,
+                  }"
+                  @click="selectRoleMenu(opt)"
+                >
+                  <div class="add-account-role-panel__option-text">
+                    <span class="add-account-role-panel__title">{{ opt }}</span>
+                  </div>
+                  <Icon
+                    v-if="addForm.roleGroup === opt"
+                    icon="lucide:check"
+                    class="add-account-role-panel__check"
+                    aria-hidden="true"
+                  />
+                </li>
+              </ul>
+            </div>
+          </Teleport>
+
+          <div class="add-account-modal__actions">
+            <button
+              type="submit"
+              class="add-account-modal__btn add-account-modal__btn--confirm"
+              :class="{ 'add-account-modal__btn--confirm--dim': !isAddFormFilled }"
+            >
+              确认
+            </button>
+          </div>
+        </form>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -760,6 +1460,61 @@ function toggleFiltersExpanded() {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 2px center;
+}
+
+.filter-field__select-trigger {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 10px 0;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.filter-field__select-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.filter-field__select-trigger-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-field__select-trigger-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.filter-field--filter-picker.filter-field--filter-picker-open {
+  border-color: rgba(241, 12, 12, 0.38);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 28px rgba(15, 23, 42, 0.038),
+    0 0 0 2px rgba(241, 12, 12, 0.14);
+}
+
+.filter-field--filter-picker-open .filter-field__select-trigger-chevron {
+  transform: rotate(180deg);
 }
 
 .filter-field__line--select:focus-within {
@@ -1292,4 +2047,399 @@ function toggleFiltersExpanded() {
   color: #fff;
   background-color: var(--primary);
 }
+
+/* —— 新增账号弹窗（与筛选区、主色一致） —— */
+.add-account-popup {
+  width: min(480px, calc(100vw - 32px));
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.add-account-modal {
+  position: relative;
+  padding-block: 24px 26px;
+  padding-inline: 24px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  overflow: visible;
+}
+
+.add-account-modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.add-account-modal__close:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.add-account-modal__close:focus {
+  outline: none;
+}
+
+.add-account-modal__close:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.add-account-modal__close-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.add-account-modal__intro {
+  width: 100%;
+  margin: 0 0 18px;
+  padding-right: 36px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.add-account-modal__title {
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--color-text-strong);
+  text-align: left;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.add-account-form {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.add-account-form__row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.add-account-form__hint {
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* 浮动标签输入（聚焦或已填写时标签缩小并移至顶部） */
+.add-account-float {
+  position: relative;
+  width: 100%;
+  min-height: 57px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.022),
+    0 8px 22px rgba(15, 23, 42, 0.028);
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.add-account-float:focus-within {
+  border-color: rgba(241, 12, 12, 0.38);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 28px rgba(15, 23, 42, 0.038),
+    0 0 0 2px rgba(241, 12, 12, 0.14);
+}
+
+.add-account-float__input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 24px 14px 10px;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: transparent;
+  outline: none;
+  line-height: 1.4;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+
+.add-account-float__input::placeholder {
+  opacity: 0;
+}
+
+.add-account-float__label {
+  position: absolute;
+  left: 14px;
+  right: 2rem;
+  top: 50%;
+  font-size: 15px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transform-origin: left center;
+  transition:
+    top 0.2s ease,
+    font-size 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.add-account-float:focus-within .add-account-float__label,
+.add-account-float__input:not(:placeholder-shown) + .add-account-float__label {
+  top: 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  transform: translateY(0);
+}
+
+.add-account-float__req {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* 下拉：始终有选中值，标签保持顶部态 */
+.add-account-float--select {
+  min-height: 57px;
+}
+
+.add-account-float--role-picker {
+  position: relative;
+  overflow: visible;
+  z-index: 1;
+}
+
+.add-account-float--role-picker-open {
+  z-index: 20;
+}
+
+.add-account-float__trigger {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 24px 12px 10px 14px;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--color-text);
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  line-height: 1.4;
+  box-sizing: border-box;
+  border-radius: 12px;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.add-account-float__trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.add-account-float__trigger-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-account-float__trigger-chevron {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.add-account-float--role-picker-open .add-account-float__trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.add-account-float--select .add-account-float__label {
+  top: 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  transform: translateY(0);
+}
+
+/* 角色自定义下拉面板（Teleport + fixed，位置由 rolePanelStyle 控制） */
+.add-account-role-panel {
+  padding: 0;
+  margin: 0;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 6px rgba(15, 23, 42, 0.04),
+    0 12px 28px rgba(15, 23, 42, 0.12);
+  box-sizing: border-box;
+  max-height: min(340px, 70vh);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.add-account-role-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px;
+}
+
+.add-account-role-panel__option {
+  display: grid;
+  grid-template-columns: auto 18px;
+  align-items: center;
+  column-gap: 10px;
+  margin: 0;
+  padding: 10px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+
+.add-account-role-panel__option:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.add-account-role-panel__option-text {
+  min-width: min-content;
+}
+
+.add-account-role-panel__title {
+  font-size: 15px;
+  font-weight: 400;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.add-account-role-panel__check {
+  width: 18px;
+  height: 18px;
+  justify-self: end;
+  color: #475569;
+}
+
+.add-account-modal__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 2px;
+  box-sizing: border-box;
+}
+
+.add-account-modal__btn {
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0 18px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: visible;
+  transition:
+    filter 0.2s ease,
+    transform 0.15s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.add-account-modal__btn--confirm {
+  border: 1px solid transparent;
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+.add-account-modal__btn--confirm:hover {
+  filter: brightness(1.06);
+}
+
+.add-account-modal__btn--confirm--dim {
+  opacity: 0.4;
+}
+
+.add-account-modal__btn--confirm--dim:hover {
+  filter: none;
+}
+
+.add-account-modal__btn--confirm:active {
+  transform: scale(0.99);
+}
+
+.add-account-modal__btn--confirm:focus {
+  outline: none;
+}
+
+.add-account-modal__btn--confirm:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 </style>
