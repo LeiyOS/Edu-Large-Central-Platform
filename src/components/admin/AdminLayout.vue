@@ -456,7 +456,6 @@ function onSidebarItemClick(label: string) {
     radial-gradient(80% 50% at 100% 20%, rgba(244, 114, 182, 0.08) 0%, transparent 45%),
     linear-gradient(180deg, #f8f9fc 0%, #f1f2f8 48%, #eceef5 100%);
   border-right: 1px solid #e8e8e8;
-  box-shadow: 6px 0 28px rgba(15, 23, 42, 0.045);
   box-sizing: border-box;
 }
 
@@ -737,7 +736,6 @@ function onSidebarItemClick(label: string) {
 .admin-shell--sidebar-collapsed .admin-sidebar__inner {
   padding: 22px 8px 20px;
   border-right: none;
-  box-shadow: none;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__brand {
