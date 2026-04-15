@@ -6,6 +6,20 @@ import { showToast } from 'vant'
 /** 与 design.md / 组织页一致 */
 const PRIMARY = '#F10C0C'
 
+/** 学案页左侧版本树（teach-aside）显隐，与 AdminLayout 全局侧栏无关 */
+const teachAsideExpanded = ref(true)
+
+const teachAsideToggleAria = computed(() =>
+  teachAsideExpanded.value ? '收起学案侧栏' : '展开学案侧栏',
+)
+
+/** 参考稿：侧栏面板轮廓（lucide panel-left） */
+const teachAsideToggleIcon = computed(() => 'lucide:panel-left')
+
+function toggleTeachAside() {
+  teachAsideExpanded.value = !teachAsideExpanded.value
+}
+
 /** 须与 `.teach-tree__menu-pop` 的 min-width 一致，用于弹层定位 */
 const TEACH_TREE_MENU_MIN_WIDTH = 133
 
@@ -78,10 +92,8 @@ const versionTree: TeachNode[] = [
 
 const expandedIds = ref<Set<string>>(new Set(['tianjin']))
 const selectedId = ref('tianjin')
-/** 通栏前进/后退：在版本树内切换选中项 */
+/** 通栏返回：在版本树内回退选中项 */
 const historyPast = ref<string[]>([])
-const historyFuture = ref<string[]>([])
-const canGoForward = computed(() => historyFuture.value.length > 0)
 
 const treeSearch = ref('')
 const regionFilter = ref('')
@@ -99,7 +111,6 @@ function selectNode(id: string) {
   closeTreeMenu()
   if (id === selectedId.value) return
   historyPast.value.push(selectedId.value)
-  historyFuture.value = []
   selectedId.value = id
 }
 
@@ -109,21 +120,8 @@ function onContextBack() {
     return
   }
   const prev = historyPast.value.pop()!
-  historyFuture.value.unshift(selectedId.value)
   selectedId.value = prev
   closeTreeMenu()
-}
-
-function onContextForward() {
-  if (!canGoForward.value) return
-  const next = historyFuture.value.shift()!
-  historyPast.value.push(selectedId.value)
-  selectedId.value = next
-  closeTreeMenu()
-}
-
-function onContextAdd() {
-  showToast('新建（示例）')
 }
 
 function findAncestors(
@@ -272,10 +270,6 @@ function onLinkOutline() {
   showToast('关联大纲（示例）')
 }
 
-function onLinkRegion() {
-  showToast('关联区域（示例）')
-}
-
 function onQuery() {
   showToast('查询（示例）')
 }
@@ -288,21 +282,23 @@ function resetRegionFilter() {
 <template>
   <div class="teach-page">
     <header class="teach-page__context" aria-label="页面导航与位置">
-      <div class="teach-page__ctx-nav">
-        <button type="button" class="teach-page__ctx-icon-btn" aria-label="返回" @click="onContextBack">
-          <Icon icon="lucide:chevron-left" class="teach-page__ctx-ico" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="teach-page__ctx-icon-btn"
-          aria-label="前进"
-          :disabled="!canGoForward"
-          @click="onContextForward"
-        >
-          <Icon icon="lucide:chevron-right" class="teach-page__ctx-ico" aria-hidden="true" />
-        </button>
+      <div class="teach-page__ctx-lead">
+        <div class="teach-page__ctx-nav">
+          <button
+            type="button"
+            class="teach-page__ctx-icon-btn"
+            :aria-label="teachAsideToggleAria"
+            :title="teachAsideToggleAria"
+            @click="toggleTeachAside"
+          >
+            <Icon :icon="teachAsideToggleIcon" class="teach-page__ctx-ico" aria-hidden="true" />
+          </button>
+          <button type="button" class="teach-page__ctx-icon-btn" aria-label="返回" @click="onContextBack">
+            <Icon icon="lucide:chevron-left" class="teach-page__ctx-ico" aria-hidden="true" />
+          </button>
+        </div>
+        <span class="teach-page__ctx-vsep" aria-hidden="true" />
       </div>
-      <span class="teach-page__ctx-vsep" aria-hidden="true" />
       <div class="teach-page__ctx-crumb" aria-current="page">
         <Icon icon="lucide:library" class="teach-page__ctx-lib" aria-hidden="true" />
         <span class="teach-page__ctx-crumb-text">
@@ -311,14 +307,10 @@ function resetRegionFilter() {
           <span class="teach-page__ctx-crumb-b">编辑版本</span>
         </span>
       </div>
-      <span class="teach-page__ctx-vsep" aria-hidden="true" />
-      <button type="button" class="teach-page__ctx-icon-btn" aria-label="新建" @click="onContextAdd">
-        <Icon icon="lucide:plus" class="teach-page__ctx-ico" aria-hidden="true" />
-      </button>
     </header>
 
     <div class="teach-page__columns">
-      <aside class="teach-aside" aria-label="学案版本与大纲">
+      <aside v-show="teachAsideExpanded" class="teach-aside" aria-label="学案版本与大纲">
       <div class="teach-aside__toolbar">
         <div class="teach-tree-search" role="search">
           <Icon icon="lucide:search" class="teach-tree-search__ico" aria-hidden="true" />
@@ -454,9 +446,6 @@ function resetRegionFilter() {
           </h2>
           <p class="teach-panel__sub">版本类型：{{ versionTypeLabel }}</p>
         </div>
-        <button type="button" class="teach-btn teach-btn--primary" @click="onLinkRegion">
-          关联区域
-        </button>
       </div>
 
       <section class="teach-filter" aria-label="筛选区域">
@@ -540,13 +529,21 @@ function resetRegionFilter() {
   margin-left: calc(-1 * max(var(--admin-inline-gutter, 32px), env(safe-area-inset-left)));
   margin-right: calc(-1 * max(var(--admin-inline-gutter, 32px), env(safe-area-inset-right)));
   margin-bottom: 0;
-  padding: 0 8px 0 6px;
+  padding: 0 8px 0 10px;
   border-radius: 0;
   background: #f8f8f7;
   border: none;
   /** 与顶栏底边同一 token（继承自 `.admin-shell --admin-header-hairline`） */
   border-bottom: 1px solid var(--admin-header-hairline, rgba(15, 23, 42, 0.05));
   box-sizing: border-box;
+}
+
+/** 侧栏切换、返回与首条竖线：相对通栏左缘整体右移 */
+.teach-page__ctx-lead {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .teach-page__ctx-nav {
@@ -666,7 +663,7 @@ function resetRegionFilter() {
   min-height: 0;
   height: 100%;
   align-self: stretch;
-  padding: 16px 14px 18px;
+  padding: 16px 14px 18px 16px;
   background: #f9f8f7;
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-left: none;
@@ -912,14 +909,20 @@ function resetRegionFilter() {
   min-width: 0;
   font-size: 13px;
   font-weight: 500;
-  color: #64748b;
+  /** 一级区域名：略浅于原 #64748b，与二级 #475569 拉开层次 */
+  color: #8091a4;
   line-height: 1.28;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.teach-tree__row--active .teach-tree__label {
+/** 二级（子卷）文案：略深于一级区域名，仍轻于正文 */
+.teach-tree__label-wrap:has(.teach-tree__paper-ico) .teach-tree__label {
+  color: #475569;
+}
+
+.teach-tree__row--active .teach-tree__label-wrap .teach-tree__label {
   color: var(--color-text-strong);
   font-weight: 600;
 }
@@ -994,13 +997,13 @@ function resetRegionFilter() {
 .teach-tree__actions {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 7px;
   z-index: 2;
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-top: -12px;
-  height: 24px;
+  margin-top: -11px;
+  height: 22px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -1017,8 +1020,8 @@ function resetRegionFilter() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   margin: 0;
   padding: 0;
   border: none;

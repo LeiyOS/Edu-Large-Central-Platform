@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import logoUrl from '../../assets/logo.png'
 import logoNorUrl from '../../assets/logo_nor.png'
 
@@ -23,18 +23,70 @@ const SIDEBAR_AUTO_COLLAPSE_MQ = '(max-width: 1024px)'
 const isNarrowViewport = ref(false)
 let narrowMql: MediaQueryList | null = null
 
+const accountMenuOpen = ref(false)
+const accountMenuRootRef = ref<HTMLElement | null>(null)
+const accountMenuTriggerRef = ref<HTMLElement | null>(null)
+const accountMenuPosition = ref({ top: 0, left: 0 })
+
 function syncNarrow() {
   isNarrowViewport.value = narrowMql?.matches ?? false
+}
+
+function onAccountDocClick(e: MouseEvent) {
+  if (!accountMenuOpen.value) return
+  const t = e.target
+  if (!(t instanceof Node)) return
+  if (accountMenuRootRef.value?.contains(t)) return
+  const menu = document.getElementById('admin-header-account-menu')
+  if (menu?.contains(t)) return
+  accountMenuOpen.value = false
+}
+
+function onAccountMenuEscape(e: KeyboardEvent) {
+  if (e.key === 'Escape') accountMenuOpen.value = false
 }
 
 onMounted(() => {
   narrowMql = window.matchMedia(SIDEBAR_AUTO_COLLAPSE_MQ)
   syncNarrow()
   narrowMql.addEventListener('change', syncNarrow)
+  document.addEventListener('click', onAccountDocClick, true)
+  document.addEventListener('keydown', onAccountMenuEscape)
+})
+
+function updateAccountMenuPosition() {
+  const el = accountMenuTriggerRef.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  const mw = 288
+  let left = r.right - mw
+  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8))
+  accountMenuPosition.value = {
+    top: Math.round(r.bottom + 6),
+    left: Math.round(left),
+  }
+}
+
+function onAccountMenuScrollClose() {
+  if (accountMenuOpen.value) accountMenuOpen.value = false
+}
+
+watch(accountMenuOpen, (open) => {
+  if (open) {
+    window.addEventListener('scroll', onAccountMenuScrollClose, true)
+    window.addEventListener('resize', updateAccountMenuPosition)
+  } else {
+    window.removeEventListener('scroll', onAccountMenuScrollClose, true)
+    window.removeEventListener('resize', updateAccountMenuPosition)
+  }
 })
 
 onUnmounted(() => {
   narrowMql?.removeEventListener('change', syncNarrow)
+  document.removeEventListener('click', onAccountDocClick, true)
+  document.removeEventListener('keydown', onAccountMenuEscape)
+  window.removeEventListener('scroll', onAccountMenuScrollClose, true)
+  window.removeEventListener('resize', updateAccountMenuPosition)
 })
 
 /** 宽屏下用户手动收起；窄屏时由 isNarrowViewport 强制等同收起 */
@@ -47,6 +99,13 @@ function toggleSidebarCollapse() {
   if (isNarrowViewport.value) return
   userCollapsed.value = !userCollapsed.value
 }
+
+/** 教学页通栏等子组件内收起/展开全局侧栏 */
+provide('adminSidebarApi', {
+  toggle: toggleSidebarCollapse,
+  isNarrow: isNarrowViewport,
+  isCollapsed: isSidebarCollapsed,
+})
 
 /** 暂时隐藏顶部「消息」入口，需要时改为 true */
 const showHeaderMessageBtn = false
@@ -139,6 +198,18 @@ function onSidebarItemClick(label: string) {
   activeSidebarLabel.value = label
   emit('sidebar-nav', label)
 }
+
+function toggleAccountMenu() {
+  accountMenuOpen.value = !accountMenuOpen.value
+  if (accountMenuOpen.value) {
+    void nextTick(() => updateAccountMenuPosition())
+  }
+}
+
+function onAccountMenuLogout() {
+  accountMenuOpen.value = false
+  emit('logout')
+}
 </script>
 
 <template>
@@ -201,28 +272,6 @@ function onSidebarItemClick(label: string) {
             </ul>
           </div>
         </div>
-
-        <div class="admin-sidebar__account">
-          <div class="admin-sidebar__account-card" role="group" aria-label="当前账号">
-            <span class="admin-sidebar__account-avatar" aria-hidden="true">
-              <Icon icon="lucide:user" class="admin-sidebar__account-avatar-icon" />
-            </span>
-            <div class="admin-sidebar__account-text">
-              <span class="admin-sidebar__account-name">刘飞</span>
-              <span class="admin-sidebar__account-meta">管理员 · imagination.cn</span>
-            </div>
-            <Icon icon="lucide:chevron-down" class="admin-sidebar__account-chevron" aria-hidden="true" />
-          </div>
-          <button
-            type="button"
-            class="admin-sidebar__account-logout"
-            title="退出登录"
-            @click="$emit('logout')"
-          >
-            <Icon icon="lucide:log-out" class="admin-sidebar__account-logout-ico" aria-hidden="true" />
-            <span class="admin-sidebar__account-logout-text">退出登录</span>
-          </button>
-        </div>
       </div>
     </aside>
 
@@ -258,8 +307,72 @@ function onSidebarItemClick(label: string) {
             <Icon icon="lucide:bell" class="admin-header__icon" />
             <span class="admin-header__badge">23</span>
           </button>
+          <div
+            ref="accountMenuRootRef"
+            class="admin-header__account"
+            :class="{ 'admin-header__account--open': accountMenuOpen }"
+          >
+            <button
+              id="admin-header-account-trigger"
+              ref="accountMenuTriggerRef"
+              type="button"
+              class="admin-header__account-trigger"
+              :class="{ 'admin-header__account-trigger--open': accountMenuOpen }"
+              aria-label="打开账号菜单（刘飞）"
+              :aria-expanded="accountMenuOpen"
+              aria-haspopup="menu"
+              aria-controls="admin-header-account-menu"
+              @click="toggleAccountMenu"
+            >
+              <span class="admin-header__account-avatar" aria-hidden="true">
+                <Icon icon="lucide:user" class="admin-header__account-avatar-icon" />
+              </span>
+            </button>
+          </div>
         </div>
       </header>
+
+      <Teleport to="body">
+        <div
+          v-show="accountMenuOpen"
+          id="admin-header-account-menu"
+          class="admin-header__account-menu"
+          role="menu"
+          aria-label="账号菜单"
+          :style="{
+            position: 'fixed',
+            top: `${accountMenuPosition.top}px`,
+            left: `${accountMenuPosition.left}px`,
+            zIndex: 4000,
+          }"
+        >
+          <div class="admin-header__account-menu-profile" role="group" aria-label="当前账号">
+            <span class="admin-header__account-menu-profile-avatar" aria-hidden="true">
+              <Icon icon="lucide:user" class="admin-header__account-menu-profile-ico" />
+            </span>
+            <div class="admin-header__account-menu-profile-text">
+              <span id="admin-header-account-profile-name" class="admin-header__account-menu-profile-name">
+                刘飞
+              </span>
+              <span class="admin-header__account-menu-profile-meta">管理员 · imagination.cn</span>
+            </div>
+            <Icon
+              icon="lucide:check"
+              class="admin-header__account-menu-profile-check"
+              aria-hidden="true"
+            />
+          </div>
+          <button
+            type="button"
+            class="admin-header__account-menu-item admin-header__account-menu-item--logout"
+            role="menuitem"
+            @click="onAccountMenuLogout"
+          >
+            <Icon icon="lucide:log-out" class="admin-header__account-menu-ico" aria-hidden="true" />
+            退出登录
+          </button>
+        </div>
+      </Teleport>
 
       <main class="admin-main">
         <slot />
@@ -377,8 +490,9 @@ function onSidebarItemClick(label: string) {
 .admin-header__right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .admin-header__icon-btn {
@@ -425,6 +539,192 @@ function onSidebarItemClick(label: string) {
   font-weight: 700;
   line-height: 18px;
   text-align: center;
+}
+
+.admin-header__account {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.admin-header__account--open {
+  z-index: 200;
+}
+
+.admin-header__account-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.admin-header__account-trigger:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.admin-header__account-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.admin-header__account-trigger--open {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.admin-header__account-menu {
+  min-width: 288px;
+  padding: 8px;
+  margin: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow:
+    0 4px 24px rgba(15, 23, 42, 0.1),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+}
+
+.admin-header__account-menu-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.admin-header__account-menu-profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: #475569;
+}
+
+.admin-header__account-menu-profile-ico {
+  width: 20px;
+  height: 20px;
+}
+
+.admin-header__account-menu-profile-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-header__account-menu-profile-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-header__account-menu-profile-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-header__account-menu-profile-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: #22c55e;
+}
+
+.admin-header__account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-header__account-menu-item:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.admin-header__account-menu-item:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.admin-header__account-menu-item--logout {
+  color: #dc2626;
+}
+
+.admin-header__account-menu-item--logout .admin-header__account-menu-ico {
+  color: #dc2626;
+  opacity: 1;
+}
+
+.admin-header__account-menu-item--logout:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.admin-header__account-menu-item--logout:focus-visible {
+  outline-color: #dc2626;
+}
+
+.admin-header__account-menu-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.88;
+  color: #475569;
+}
+
+.admin-header__account-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+}
+
+.admin-header__account-avatar-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .admin-sidebar {
@@ -636,125 +936,6 @@ function onSidebarItemClick(label: string) {
   white-space: nowrap;
 }
 
-.admin-sidebar__account {
-  flex-shrink: 0;
-  margin-top: auto;
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.admin-sidebar__account-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 12px 12px 14px;
-  background: #fff;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.022),
-    0 10px 28px rgba(15, 23, 42, 0.032);
-  cursor: default;
-}
-
-.admin-sidebar__account-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.06);
-  color: #475569;
-}
-
-.admin-sidebar__account-avatar-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.admin-sidebar__account-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.admin-sidebar__account-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.admin-sidebar__account-meta {
-  font-size: 12px;
-  font-weight: 500;
-  color: #64748b;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.admin-sidebar__account-chevron {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  color: #94a3b8;
-  transform: rotate(-90deg);
-}
-
-.admin-sidebar__account-logout {
-  align-self: stretch;
-  margin: 0;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.05);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.admin-sidebar__account-logout-ico {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.admin-sidebar__account-logout-text {
-  white-space: nowrap;
-}
-
-.admin-sidebar__account-logout:hover {
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
-}
-
-.admin-sidebar__account-logout:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
 .admin-body {
   flex: 1 1 auto;
   display: flex;
@@ -857,38 +1038,6 @@ function onSidebarItemClick(label: string) {
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__item-text {
-  display: none;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__account-card {
-  justify-content: center;
-  padding: 12px;
-  gap: 0;
-  min-height: 64px;
-  box-sizing: border-box;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__account-text,
-.admin-shell--sidebar-collapsed .admin-sidebar__account-chevron {
-  visibility: hidden;
-  width: 0;
-  flex: 0 0 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__account-avatar {
-  margin: 0;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__account-logout {
-  padding: 8px 12px;
-  min-height: 36px;
-  box-sizing: border-box;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__account-logout-text {
   display: none;
 }
 

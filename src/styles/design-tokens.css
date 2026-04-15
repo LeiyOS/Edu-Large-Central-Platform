@@ -22,4 +22,38 @@
     'PingFang SC',
     'Microsoft YaHei',
     sans-serif;
+  /** 纵向滚动条滑块（与侧栏 / 学案树等浅色底协调） */
+  --scrollbar-thumb: #d3d1cb;
+  --scrollbar-track: transparent;
+}
+
+/* Firefox：仅改色，粗细沿用浏览器默认 */
+.teach-tree,
+.teach-table-wrap,
+.admin-sidebar__scroll,
+.admin-main {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Chromium / Safari / 旧版 Edge：不强制宽度，仅改色 */
+.teach-tree::-webkit-scrollbar-track,
+.teach-table-wrap::-webkit-scrollbar-track,
+.admin-sidebar__scroll::-webkit-scrollbar-track,
+.admin-main::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.teach-tree::-webkit-scrollbar-thumb,
+.teach-table-wrap::-webkit-scrollbar-thumb,
+.admin-sidebar__scroll::-webkit-scrollbar-thumb,
+.admin-main::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.teach-tree::-webkit-scrollbar-thumb:hover,
+.teach-table-wrap::-webkit-scrollbar-thumb:hover,
+.admin-sidebar__scroll::-webkit-scrollbar-thumb:hover,
+.admin-main::-webkit-scrollbar-thumb:hover {
+  filter: brightness(0.94);
 }
