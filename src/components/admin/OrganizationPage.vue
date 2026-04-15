@@ -581,6 +581,9 @@ function resetFilter() {
   border-radius: 12px;
   /** 避免裁剪标题旁下拉菜单 */
   overflow: visible;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.022),
+    0 8px 22px rgba(15, 23, 42, 0.028);
 }
 
 .org-panel__toolbar {

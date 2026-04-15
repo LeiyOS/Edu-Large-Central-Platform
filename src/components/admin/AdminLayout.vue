@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import logoUrl from '../../assets/logo.png'
 import logoNorUrl from '../../assets/logo_nor.png'
+
+const props = defineProps<{
+  /** 当前选中的顶部业务模块 Tab（与 App.vue 同步） */
+  activeTopNav: string
+}>()
 
 const emit = defineEmits<{
   logout: []
   /** 侧栏菜单文案，用于主区切换页面 */
   'sidebar-nav': [label: string]
+  /** 顶部业务模块切换 */
+  'top-nav': [label: string]
 }>()
 
 /** 小于此宽度时侧栏固定为仅图标（与点击收起一致） */
@@ -48,13 +55,7 @@ const sidebarLogoSrc = computed(() =>
   isSidebarCollapsed.value ? logoNorUrl : logoUrl,
 )
 
-const topNav = [
-  { label: '教学' },
-  { label: '教务' },
-  { label: '运营' },
-  { label: '电商' },
-  { label: '系统', active: true },
-]
+const topNavLabels = ['教学', '教务', '运营', '电商', '系统'] as const
 
 const sidebarGroupsSource = [
   {
@@ -73,16 +74,65 @@ const sidebarGroupsSource = [
   },
 ] as const
 
+/** 教学 Tab：侧栏入口（主区由 App.vue 固定为 TeachingPage） */
+const teachingSidebarGroupsSource = [
+  {
+    title: '题库管理',
+    items: [
+      { label: '题库搜题', icon: 'lucide:search' },
+      { label: '扫雷管理', icon: 'lucide:scan-search' },
+      { label: '随堂测', icon: 'lucide:clipboard-list' },
+      { label: '学案题库', icon: 'lucide:book-open' },
+      { label: '导学题库', icon: 'lucide:book-marked' },
+    ],
+  },
+  {
+    title: '课程管理',
+    items: [
+      { label: '课程列表', icon: 'lucide:layout-list' },
+      { label: '课表编排', icon: 'lucide:calendar-range' },
+      { label: '授课班级', icon: 'lucide:school' },
+    ],
+  },
+  {
+    title: '配置中心',
+    items: [
+      { label: '学科管理', icon: 'lucide:library' },
+      { label: '年级学制', icon: 'lucide:layers' },
+      { label: '系统参数', icon: 'lucide:sliders-horizontal' },
+    ],
+  },
+] as const
+
+const TEACHING_SIDEBAR_LABELS: Set<string> = new Set(
+  teachingSidebarGroupsSource.flatMap((g) => g.items.map((i) => i.label)),
+)
+
 const activeSidebarLabel = ref('组织管理')
 
-const sidebarGroups = computed(() =>
-  sidebarGroupsSource.map((group) => ({
+const sidebarGroups = computed(() => {
+  const src = props.activeTopNav === '教学' ? teachingSidebarGroupsSource : sidebarGroupsSource
+  return src.map((group) => ({
     title: group.title,
     items: group.items.map((item) => ({
       ...item,
       active: item.label === activeSidebarLabel.value,
     })),
-  })),
+  }))
+})
+
+watch(
+  () => props.activeTopNav,
+  (nav) => {
+    if (nav === '教学') {
+      activeSidebarLabel.value = '学案题库'
+      emit('sidebar-nav', '学案题库')
+    } else if (TEACHING_SIDEBAR_LABELS.has(activeSidebarLabel.value)) {
+      activeSidebarLabel.value = '组织管理'
+      emit('sidebar-nav', '组织管理')
+    }
+  },
+  { immediate: true },
 )
 
 function onSidebarItemClick(label: string) {
@@ -181,15 +231,16 @@ function onSidebarItemClick(label: string) {
         <div class="admin-header__left">
           <nav class="admin-header__nav" aria-label="业务模块">
             <button
-              v-for="(item, i) in topNav"
-              :key="i"
+              v-for="label in topNavLabels"
+              :key="label"
               type="button"
               class="admin-header__nav-item"
-              :class="{ 'admin-header__nav-item--active': item.active }"
+              :class="{ 'admin-header__nav-item--active': props.activeTopNav === label }"
               aria-haspopup="menu"
               aria-expanded="false"
+              @click="emit('top-nav', label)"
             >
-              <span class="admin-header__nav-text">{{ item.label }}</span>
+              <span class="admin-header__nav-text">{{ label }}</span>
               <Icon icon="lucide:chevron-down" class="admin-header__nav-chevron" aria-hidden="true" />
             </button>
           </nav>
