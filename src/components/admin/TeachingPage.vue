@@ -136,7 +136,49 @@ const regionRows = ref<{ id: string; name: string }[]>([
   { id: 'r-1', name: '天津市' },
   { id: 'r-2', name: '成都市' },
   { id: 'r-3', name: '南京市' },
+  { id: 'r-4', name: '北京市' },
+  { id: 'r-5', name: '上海市' },
+  { id: 'r-6', name: '重庆市' },
+  { id: 'r-7', name: '广州市' },
+  { id: 'r-8', name: '深圳市' },
+  { id: 'r-9', name: '杭州市' },
+  { id: 'r-10', name: '武汉市' },
+  { id: 'r-11', name: '西安市' },
+  { id: 'r-12', name: '苏州市' },
+  { id: 'r-13', name: '郑州市' },
+  { id: 'r-14', name: '长沙市' },
+  { id: 'r-15', name: '济南市' },
+  { id: 'r-16', name: '合肥市' },
+  { id: 'r-17', name: '福州市' },
+  { id: 'r-18', name: '厦门市' },
+  { id: 'r-19', name: '青岛市' },
+  { id: 'r-20', name: '大连市' },
+  { id: 'r-21', name: '沈阳市' },
+  { id: 'r-22', name: '哈尔滨市' },
+  { id: 'r-23', name: '昆明市' },
+  { id: 'r-24', name: '贵阳市' },
+  { id: 'r-25', name: '南宁市' },
+  { id: 'r-26', name: '石家庄市' },
+  { id: 'r-27', name: '太原市' },
+  { id: 'r-28', name: '南昌市' },
+  { id: 'r-29', name: '海口市' },
+  { id: 'r-30', name: '兰州市' },
 ])
+
+/** 与「请输入区域名称」输入框绑定：按区域名称包含匹配（不区分大小写） */
+const filteredRegionRows = computed(() => {
+  const q = regionFilter.value.trim().toLowerCase()
+  if (!q) return regionRows.value
+  return regionRows.value.filter((r) => r.name.toLowerCase().includes(q))
+})
+
+const showRegionTableEmpty = computed(
+  () => regionRows.value.length === 0 || filteredRegionRows.value.length === 0,
+)
+
+const regionTableEmptyText = computed(() =>
+  regionRows.value.length === 0 ? '还没有设置关联区域' : '未找到匹配的区域',
+)
 
 function toggleExpand(id: string) {
   const next = new Set(expandedIds.value)
@@ -574,7 +616,7 @@ function removeRegionRow(id: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in regionRows" :key="r.id" class="teach-table__tr">
+            <tr v-for="r in filteredRegionRows" :key="r.id" class="teach-table__tr">
               <td class="teach-table__td">
                 <span class="teach-table__cell-region">
                   <Icon icon="lucide:building-2" class="teach-table__row-ico" aria-hidden="true" />
@@ -596,11 +638,11 @@ function removeRegionRow(id: string) {
           </tbody>
         </table>
 
-        <div v-if="regionRows.length === 0" class="teach-empty teach-empty--inline" role="status">
+        <div v-if="showRegionTableEmpty" class="teach-empty teach-empty--inline" role="status">
           <div class="teach-empty__art" aria-hidden="true">
             <img :src="teachEmptyArtUrl" alt="" class="teach-empty__art-img" width="237" height="237" decoding="async" />
           </div>
-          <p class="teach-empty__text">还没有设置关联区域</p>
+          <p class="teach-empty__text">{{ regionTableEmptyText }}</p>
         </div>
       </div>
     </section>
@@ -1243,8 +1285,8 @@ function removeRegionRow(id: string) {
   flex-direction: column;
   align-self: stretch;
   margin-left: 0;
-  /** 主区在学案页去掉 24px 底内边距，此处补回，避免表格区贴齐 main 底缘 */
-  padding: 28px 20px calc(20px + max(24px, env(safe-area-inset-bottom))) 20px;
+  /** 底内边距交给 `.teach-table-wrap`，使表格区外缘与面板底缘对齐，避免栏下留白缝 */
+  padding: 28px 20px 0 20px;
   background: var(--color-surface);
   border: none;
   border-radius: 0;
@@ -1605,7 +1647,9 @@ function removeRegionRow(id: string) {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: 280px;
+  min-height: 0;
+  /** 原 teach-panel 底部留白与安全区，改在滚动容器内，底边与面板齐平 */
+  padding-bottom: calc(20px + max(24px, env(safe-area-inset-bottom)));
   overflow: auto;
   border-radius: 0;
   border: none;
