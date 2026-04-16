@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { showToast } from 'vant'
+import teachEmptyArtUrl from '../../assets/404-img.png'
 
 /** 与 design.md / 组织页一致 */
 const PRIMARY = '#F10C0C'
@@ -13,8 +14,10 @@ const teachAsideToggleAria = computed(() =>
   teachAsideExpanded.value ? '收起学案侧栏' : '展开学案侧栏',
 )
 
-/** 参考稿：侧栏面板轮廓（lucide panel-left） */
-const teachAsideToggleIcon = computed(() => 'lucide:panel-left')
+/** 学案侧栏展开：panel-left-close（左箭+竖条）；收起：panel-left-open（竖条+右箭） */
+const teachAsideToggleIcon = computed(() =>
+  teachAsideExpanded.value ? 'lucide:panel-left-close' : 'lucide:panel-left-open',
+)
 
 function toggleTeachAside() {
   teachAsideExpanded.value = !teachAsideExpanded.value
@@ -96,9 +99,44 @@ const selectedId = ref('tianjin')
 const historyPast = ref<string[]>([])
 
 const treeSearch = ref('')
+const treeSearchInputRef = ref<HTMLInputElement | null>(null)
 const regionFilter = ref('')
+const regionInputRef = ref<HTMLInputElement | null>(null)
+/** 区域搜索输入默认收起，点击放大镜展开，再次点击收起 */
+const regionSearchExpanded = ref(false)
 
-const regionRows = ref<{ id: string; name: string }[]>([])
+const regionSearchToggleAria = computed(() =>
+  regionSearchExpanded.value ? '收起区域搜索' : '展开区域搜索',
+)
+
+function toggleRegionSearch() {
+  const next = !regionSearchExpanded.value
+  if (regionSearchExpanded.value && !next) {
+    regionInputRef.value?.blur()
+  }
+  regionSearchExpanded.value = next
+  if (next) {
+    nextTick(() => regionInputRef.value?.focus())
+  }
+}
+
+function clearRegionFilter() {
+  regionFilter.value = ''
+  regionInputRef.value?.blur()
+  regionSearchExpanded.value = false
+}
+
+function clearTreeSearch() {
+  treeSearch.value = ''
+  nextTick(() => treeSearchInputRef.value?.focus())
+}
+
+/** 示例数据，便于预览表格；接入关联区域接口后改为空数组或由接口填充 */
+const regionRows = ref<{ id: string; name: string }[]>([
+  { id: 'r-1', name: '天津市' },
+  { id: 'r-2', name: '成都市' },
+  { id: 'r-3', name: '南京市' },
+])
 
 function toggleExpand(id: string) {
   const next = new Set(expandedIds.value)
@@ -270,12 +308,12 @@ function onLinkOutline() {
   showToast('关联大纲（示例）')
 }
 
-function onQuery() {
-  showToast('查询（示例）')
+function onLinkRegion() {
+  showToast('关联区域（示例）')
 }
 
-function resetRegionFilter() {
-  regionFilter.value = ''
+function removeRegionRow(id: string) {
+  regionRows.value = regionRows.value.filter((r) => r.id !== id)
 }
 </script>
 
@@ -284,15 +322,6 @@ function resetRegionFilter() {
     <header class="teach-page__context" aria-label="页面导航与位置">
       <div class="teach-page__ctx-lead">
         <div class="teach-page__ctx-nav">
-          <button
-            type="button"
-            class="teach-page__ctx-icon-btn"
-            :aria-label="teachAsideToggleAria"
-            :title="teachAsideToggleAria"
-            @click="toggleTeachAside"
-          >
-            <Icon :icon="teachAsideToggleIcon" class="teach-page__ctx-ico" aria-hidden="true" />
-          </button>
           <button type="button" class="teach-page__ctx-icon-btn" aria-label="返回" @click="onContextBack">
             <Icon icon="lucide:chevron-left" class="teach-page__ctx-ico" aria-hidden="true" />
           </button>
@@ -315,13 +344,25 @@ function resetRegionFilter() {
         <div class="teach-tree-search" role="search">
           <Icon icon="lucide:search" class="teach-tree-search__ico" aria-hidden="true" />
           <input
+            id="teach-tree-search-input"
+            ref="treeSearchInputRef"
             v-model="treeSearch"
-            type="search"
+            type="text"
             class="teach-tree-search__input"
             placeholder="输入并搜索..."
             autocomplete="off"
+            enterkeyhint="search"
             aria-label="搜索版本树"
           />
+          <button
+            v-show="treeSearch.length > 0"
+            type="button"
+            class="teach-tree-search__clear"
+            aria-label="清除搜索内容"
+            @click="clearTreeSearch"
+          >
+            <Icon icon="lucide:x" class="teach-tree-search__clear-ico" aria-hidden="true" />
+          </button>
         </div>
         <button type="button" class="teach-btn teach-btn--primary teach-aside__outline-btn" @click="onLinkOutline">
           关联大纲
@@ -441,55 +482,123 @@ function resetRegionFilter() {
     <section class="teach-panel" aria-labelledby="teach-panel-title">
       <div class="teach-panel__toolbar">
         <div class="teach-panel__meta">
-          <h2 id="teach-panel-title" class="teach-panel__title">
-            当前版本：<span class="teach-panel__title-em">{{ currentVersionName }}</span>
-          </h2>
-          <p class="teach-panel__sub">版本类型：{{ versionTypeLabel }}</p>
+          <div class="teach-panel__title-row">
+            <button
+              type="button"
+              class="teach-page__ctx-icon-btn"
+              :aria-label="teachAsideToggleAria"
+              :title="teachAsideToggleAria"
+              @click="toggleTeachAside"
+            >
+              <Icon :icon="teachAsideToggleIcon" class="teach-page__ctx-ico" aria-hidden="true" />
+            </button>
+            <h2 id="teach-panel-title" class="teach-panel__title">
+              <span class="teach-panel__title-em">{{ currentVersionName }}</span>
+            </h2>
+          </div>
+          <div class="teach-panel__meta-row">
+            <span class="teach-panel__pill" role="note">
+              <Icon icon="lucide:check-square" class="teach-panel__pill-ico" aria-hidden="true" />
+              <span class="teach-panel__pill-text">版本类型：{{ versionTypeLabel }}</span>
+            </span>
+          </div>
         </div>
-      </div>
 
-      <section class="teach-filter" aria-label="筛选区域">
-        <label class="teach-filter__label" for="teach-region-input">区域</label>
-        <div class="teach-filter__line">
-          <input
-            id="teach-region-input"
-            v-model="regionFilter"
-            type="search"
-            class="teach-filter__input"
-            placeholder="请输入区域名称"
-            autocomplete="off"
-          />
-        </div>
-        <div class="teach-filter__actions">
-          <button type="button" class="teach-btn teach-btn--primary teach-btn--filter" @click="onQuery">
-            查询
-          </button>
-          <button type="button" class="teach-btn teach-btn--outline teach-btn--filter" @click="resetRegionFilter">
-            重置
-          </button>
-        </div>
-      </section>
+        <section class="teach-filter teach-filter--toolbar" aria-label="筛选区域">
+          <label class="teach-filter__sr-only" for="teach-region-input">区域</label>
+          <div class="teach-filter__toolbar-row">
+            <div
+              class="teach-filter__line"
+              :class="{ 'teach-filter__line--search-collapsed': !regionSearchExpanded }"
+            >
+              <button
+                type="button"
+                class="teach-filter__search-trigger"
+                :aria-label="regionSearchToggleAria"
+                :aria-expanded="regionSearchExpanded"
+                aria-controls="teach-region-input"
+                @click.stop="toggleRegionSearch"
+              >
+                <Icon icon="lucide:search" class="teach-filter__search-trigger-ico" aria-hidden="true" />
+              </button>
+              <div
+                class="teach-filter__input-wrap"
+                :class="{ 'teach-filter__input-wrap--collapsed': !regionSearchExpanded }"
+              >
+                <input
+                  id="teach-region-input"
+                  ref="regionInputRef"
+                  v-model="regionFilter"
+                  type="text"
+                  class="teach-filter__input"
+                  placeholder="请输入区域名称"
+                  autocomplete="off"
+                  enterkeyhint="search"
+                />
+                <button
+                  v-show="regionFilter.length > 0"
+                  type="button"
+                  class="teach-filter__clear"
+                  aria-label="清除搜索内容"
+                  @click="clearRegionFilter"
+                >
+                  <Icon icon="lucide:x" class="teach-filter__clear-ico" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <button type="button" class="teach-filter__region-btn" @click="onLinkRegion">关联区域</button>
+          </div>
+        </section>
+      </div>
 
       <div class="teach-table-wrap">
         <table class="teach-table">
+          <colgroup>
+            <col class="teach-table__col-region" />
+            <col class="teach-table__col-act" />
+          </colgroup>
           <thead>
             <tr>
-              <th scope="col" class="teach-table__th">区域</th>
-              <th scope="col" class="teach-table__th teach-table__th--act">操作</th>
+              <th scope="col" class="teach-table__th">
+                <span class="teach-table__th-inner teach-table__th-inner--region">
+                  <Icon icon="mdi:map-marker" class="teach-table__th-ico teach-table__th-ico--region" aria-hidden="true" />
+                  <span>区域</span>
+                </span>
+              </th>
+              <th scope="col" class="teach-table__th teach-table__th--act">
+                <span class="teach-table__th-inner">
+                  <Icon icon="mdi:tune" class="teach-table__th-ico teach-table__th-ico--act" aria-hidden="true" />
+                  <span>操作</span>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in regionRows" :key="r.id">
-              <td class="teach-table__td">{{ r.name }}</td>
-              <td class="teach-table__td">—</td>
+            <tr v-for="r in regionRows" :key="r.id" class="teach-table__tr">
+              <td class="teach-table__td">
+                <span class="teach-table__cell-region">
+                  <Icon icon="lucide:building-2" class="teach-table__row-ico" aria-hidden="true" />
+                  <span class="teach-table__region-name">{{ r.name }}</span>
+                </span>
+              </td>
+              <td class="teach-table__td teach-table__td--act">
+                <button
+                  type="button"
+                  class="teach-table__del"
+                  aria-label="删除该区域"
+                  @click="removeRegionRow(r.id)"
+                >
+                  <Icon icon="lucide:trash-2" class="teach-table__del-ico" aria-hidden="true" />
+                  删除
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
 
-        <div v-if="regionRows.length === 0" class="teach-empty">
+        <div v-if="regionRows.length === 0" class="teach-empty teach-empty--inline" role="status">
           <div class="teach-empty__art" aria-hidden="true">
-            <Icon icon="lucide:package-open" class="teach-empty__art-ico" />
-            <span class="teach-empty__spark" />
+            <img :src="teachEmptyArtUrl" alt="" class="teach-empty__art-img" width="237" height="237" decoding="async" />
           </div>
           <p class="teach-empty__text">还没有设置关联区域</p>
         </div>
@@ -511,7 +620,6 @@ function resetRegionFilter() {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-height: 100%;
   font-family: var(--font-sans);
   color: var(--color-text);
 }
@@ -538,12 +646,12 @@ function resetRegionFilter() {
   box-sizing: border-box;
 }
 
-/** 侧栏切换、返回与首条竖线：相对通栏左缘整体右移 */
+/** 侧栏切换、返回与首条竖线 */
 .teach-page__ctx-lead {
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
-  margin-left: 2px;
+  margin-left: -2px;
 }
 
 .teach-page__ctx-nav {
@@ -661,8 +769,8 @@ function resetRegionFilter() {
   flex-direction: column;
   min-width: 260px;
   min-height: 0;
-  height: 100%;
   align-self: stretch;
+  /** 高度随 teach-page__columns 拉伸（勿用 height:100%，在部分 flex 链路上百分比不成立） */
   padding: 16px 14px 18px 16px;
   background: #f9f8f7;
   border: 1px solid rgba(15, 23, 42, 0.06);
@@ -682,7 +790,7 @@ function resetRegionFilter() {
   min-width: 0;
 }
 
-/** 侧栏搜索：无边框、无底色，仅图标 + 文案（参考极简稿） */
+/** 侧栏版本树搜索：无边框、无底色，仅图标 + 输入（与早期稿一致） */
 .teach-tree-search {
   flex: 1 1 auto;
   box-sizing: border-box;
@@ -696,6 +804,7 @@ function resetRegionFilter() {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  position: relative;
 }
 
 .teach-tree-search:focus-within {
@@ -720,7 +829,7 @@ function resetRegionFilter() {
   flex: 1 1 auto;
   min-width: 0;
   border: none;
-  padding: 0;
+  padding: 0 22px 0 0;
   min-height: 0;
   font: inherit;
   font-size: 14px;
@@ -729,6 +838,8 @@ function resetRegionFilter() {
   background: transparent;
   outline: none;
   box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .teach-tree-search__input:focus,
@@ -814,7 +925,7 @@ function resetRegionFilter() {
 }
 
 .teach-tree {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -997,7 +1108,7 @@ function resetRegionFilter() {
 .teach-tree__actions {
   position: absolute;
   top: 50%;
-  right: 7px;
+  right: 8px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -1121,6 +1232,9 @@ function resetRegionFilter() {
 }
 
 .teach-panel {
+  /** 标题↔版本类型 pill、工具栏↔表格 使用同一垂直间距 */
+  --teach-panel-stack-gap: 10px;
+
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
@@ -1128,8 +1242,9 @@ function resetRegionFilter() {
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  margin-left: 16px;
-  padding: 18px 20px 20px;
+  margin-left: 0;
+  /** 主区在学案页去掉 24px 底内边距，此处补回，避免表格区贴齐 main 底缘 */
+  padding: 28px 20px calc(20px + max(24px, env(safe-area-inset-bottom))) 20px;
   background: var(--color-surface);
   border: none;
   border-radius: 0;
@@ -1138,21 +1253,54 @@ function resetRegionFilter() {
 
 .teach-panel__toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
-  margin-bottom: 16px;
+  padding-bottom: 0;
+  margin-bottom: var(--teach-panel-stack-gap);
+}
+
+.teach-panel__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--teach-panel-stack-gap);
+  min-width: 0;
+}
+
+.teach-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.teach-panel__title-row .teach-panel__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.teach-panel__title-row .teach-page__ctx-ico {
+  width: calc(18px * 1.2);
+  height: calc(18px * 1.2);
+}
+
+.teach-panel__title-row .teach-page__ctx-icon-btn {
+  color: #999999;
+}
+
+.teach-panel__title-row .teach-page__ctx-icon-btn:hover:not(:disabled) {
+  color: #999999;
 }
 
 .teach-panel__title {
-  margin: 0 0 6px;
-  font-size: 1.125rem;
+  margin: 0;
+  font-size: 1.375rem;
   font-weight: 700;
   color: var(--color-text-strong);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
 }
 
 .teach-panel__title-em {
@@ -1160,11 +1308,41 @@ function resetRegionFilter() {
   color: var(--color-text);
 }
 
-.teach-panel__sub {
-  margin: 0;
+.teach-panel__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.teach-panel__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px 9px 10px;
+  border-radius: 999px;
+  background: #f3f3f3;
+  box-sizing: border-box;
+}
+
+.teach-panel__pill-ico {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #a6a299;
+}
+
+.teach-panel__pill-ico :deep(svg) {
+  stroke-width: 1.75;
+}
+
+.teach-panel__pill-text {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-secondary);
+  color: #7d7a75;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .teach-filter {
@@ -1176,102 +1354,447 @@ function resetRegionFilter() {
   margin-bottom: 18px;
 }
 
-.teach-filter__label {
-  flex: 0 0 auto;
-  font-size: 14px;
-  font-weight: 600;
-  color: #475569;
-  margin-right: auto;
+/** 与「版本类型」行底对齐，靠工具栏最右；单行极简搜索条 */
+.teach-filter--toolbar {
+  /** 与侧栏「关联大纲」`.teach-aside__outline-btn` 高度一致 */
+  --teach-filter-ctrl-height: 34px;
+
+  margin-bottom: 0;
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+}
+
+/** 搜索条与「关联区域」同一行，项间距 8px */
+.teach-filter__toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.teach-filter__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .teach-filter__line {
-  flex: 0 1 280px;
-  min-width: 160px;
-  min-height: 40px;
+  /** flex-grow:0 不吃掉行内剩余宽度，右缘贴齐输入/图标，与「关联区域」仅隔工具栏 gap（收起/展开一致） */
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: min(calc(460px * 4 / 3 * 5 / 6), 100%);
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.022),
-    0 6px 18px rgba(15, 23, 42, 0.028);
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  gap: 8px;
+  height: var(--teach-filter-ctrl-height);
+  min-height: var(--teach-filter-ctrl-height);
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  box-sizing: border-box;
 }
 
-.teach-filter:focus-within .teach-filter__line,
-.teach-filter__line:focus-within {
-  border-color: rgba(241, 12, 12, 0.38);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 8px 24px rgba(15, 23, 42, 0.04),
-    0 0 0 2px rgba(241, 12, 12, 0.14);
+/** 输入收起时只占放大镜宽度，不把整行撑到 max-width */
+.teach-filter__line--search-collapsed {
+  flex: 0 0 auto;
+  max-width: none;
+  width: auto;
+}
+
+/** 32×32 热区；hover 浅灰底与圆角与框选范围一致 */
+.teach-filter__search-trigger {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 0 0 6px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.teach-filter__search-trigger:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.teach-filter__search-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.teach-filter__search-trigger-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.teach-filter__search-trigger-ico :deep(svg) {
+  stroke-width: 1.75;
+}
+
+.teach-filter__input-wrap {
+  /** 在上一版基础上再缩短 1/6（×5/6）；不超出时占满行内剩余，窄屏随父级收缩 */
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  max-width: calc((460px - 42px) * 3 / 4 * 4 / 3 * 5 / 6);
+  overflow: hidden;
+  align-self: center;
+  /** 与搜索 icon 间距为行 gap 的一半（8px→4px） */
+  margin-left: -4px;
+  /** 清除钮绝对定位，避免参与 flex 占位导致输入区随叉显隐左右跳 */
+  position: relative;
+}
+
+/**
+ * 收起态：不用仅依赖 v-show（部分环境下 flex 子项的 display 可能被覆盖），用 !important 保证不占位、不可见
+ */
+.teach-filter__input-wrap--collapsed {
+  display: none !important;
+  flex: 0 0 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  margin-left: 0 !important;
+  overflow: hidden !important;
+}
+
+/** 区域筛选与版本树搜索共用：小圆底 #ADA9A3 + 居中白叉（叠在输入区右侧，不占 flex 宽度） */
+.teach-filter__clear,
+.teach-tree-search__clear {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ada9a3;
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    filter 0.15s ease;
+}
+
+.teach-filter__clear:hover,
+.teach-tree-search__clear:hover {
+  background: #9d9993;
+}
+
+.teach-filter__clear:focus-visible,
+.teach-tree-search__clear:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.teach-filter__clear-ico,
+.teach-tree-search__clear-ico {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: block;
+  margin: 0;
+}
+
+.teach-filter__clear-ico :deep(svg),
+.teach-tree-search__clear-ico :deep(svg) {
+  stroke-width: 2.85;
 }
 
 .teach-filter__input {
+  display: block;
   flex: 1 1 auto;
-  min-width: 0;
+  width: auto;
+  /** 与输入区上限同比 ×5/6 */
+  min-width: calc(140px * 2 / 3 * 3 / 4 * 4 / 3 * 5 / 6);
+  box-sizing: border-box;
   border: none;
-  padding: 10px 0;
+  /** 恒为清除钮预留宽度，叉显隐时输入区不再左移 */
+  padding: 0 22px 0 0;
+  height: 32px;
+  line-height: 32px;
   font: inherit;
   font-size: 14px;
+  font-weight: 400;
   color: var(--color-text);
   background: transparent;
   outline: none;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.teach-filter__input:focus,
+.teach-filter__input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .teach-filter__input::placeholder {
-  color: var(--color-placeholder);
+  color: #999;
 }
 
-.teach-filter__actions {
-  display: flex;
-  gap: 8px;
+/** 主题主色（与 teach-btn--primary 一致） */
+.teach-filter__region-btn {
   flex-shrink: 0;
+  margin: 0;
+  height: var(--teach-filter-ctrl-height);
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    filter 0.2s ease,
+    transform 0.15s ease;
+}
+
+.teach-filter__region-btn:hover {
+  filter: brightness(1.06);
+}
+
+.teach-filter__region-btn:active {
+  transform: scale(0.99);
+}
+
+.teach-filter__region-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .teach-table-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 280px;
   overflow: auto;
   border-radius: 0;
   border: none;
+  background: var(--color-surface, #fff);
 }
 
+/** 参考极简表：仅横线、无竖线、表头图标+文案 */
 .teach-table {
   width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 14px;
+  table-layout: fixed;
+}
+
+/** 两列固定比例：区域自适应剩余宽 + 操作 140px，整表同一通栏不换行断列 */
+.teach-table__col-region {
+  width: auto;
+  min-width: 0;
+}
+
+.teach-table__col-act {
+  width: 140px;
 }
 
 .teach-table__th {
   text-align: left;
-  padding: 12px 18px;
-  font-size: 12px;
-  font-weight: 600;
+  /** 与 `.teach-table__td` 同上下内边距，表头行高与数据行一致 */
+  padding: 6px 20px;
+  font-size: 13px;
+  font-weight: 500;
   color: #64748b;
-  background: #f8fafc;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  vertical-align: middle;
+}
+
+.teach-table__th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.teach-table__th-inner--region {
+  gap: 6px;
+  margin-left: -15px;
+}
+
+.teach-table__th-ico {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  opacity: 0.95;
+}
+
+/** 区域列：实心定位标 */
+.teach-table__th-ico--region {
+  width: calc(16px * 1.2 * 1.2 * 0.9 * 0.86);
+  height: calc(16px * 1.2 * 1.2 * 0.9 * 0.86);
+  color: #8e8b86;
+  opacity: 1;
+}
+
+.teach-table__th-ico :deep(svg) {
+  stroke-width: 1.75;
+}
+
+.teach-table__th-ico--region :deep(svg) {
+  stroke: none;
+  fill: currentColor;
+}
+
+/** 「操作」表头：实心图标，尺寸与色值同「区域」 */
+.teach-table__th-ico--act {
+  width: calc(16px * 1.2 * 1.2 * 0.9 * 0.86);
+  height: calc(16px * 1.2 * 1.2 * 0.9 * 0.86);
+  color: #8e8b86;
+  opacity: 1;
+}
+
+.teach-table__th-ico--act :deep(svg) {
+  stroke: none;
+  fill: currentColor;
 }
 
 .teach-table__th--act {
-  width: 120px;
+  width: 140px;
+  text-align: left;
+  /** 操作列整体较默认单元格向右 8px（左 +8 / 右 −8，相对通栏 20px 内边距） */
+  padding: 6px 12px 6px 28px;
+}
+
+.teach-table__th--act .teach-table__th-inner {
+  justify-content: flex-start;
+}
+
+.teach-table__tr {
+  transition: background 0.12s ease;
+}
+
+.teach-table tbody .teach-table__tr:hover {
+  background: rgba(15, 23, 42, 0.02);
 }
 
 .teach-table__td {
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.04);
+  padding: 6px 20px;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   color: var(--color-text);
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.teach-table__cell-region {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.teach-table__row-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.teach-table__row-ico :deep(svg) {
+  stroke-width: 1.65;
+}
+
+.teach-table__region-name {
+  font-weight: 500;
+  color: var(--color-text-strong, var(--color-text));
+}
+
+.teach-table__td--act {
+  text-align: left;
+  padding: 6px 12px 6px 28px;
+}
+
+.teach-table__del {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.teach-table__del:hover {
+  background: rgba(241, 65, 65, 0.08);
+  color: #dc2626;
+}
+
+.teach-table__del:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.teach-table__del-ico {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.teach-table__del-ico :deep(svg) {
+  stroke-width: 1.85;
 }
 
 .teach-empty {
   position: absolute;
-  inset: 48px 0 0;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1281,41 +1804,39 @@ function resetRegionFilter() {
   pointer-events: none;
 }
 
+/** 表头常驻时：空状态排在表格下方，不占满整格 */
+.teach-empty.teach-empty--inline {
+  position: static;
+  inset: auto;
+  flex: 1 1 auto;
+  min-height: 200px;
+  width: 100%;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
 .teach-empty__art {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 88px;
-  height: 88px;
-  border-radius: 20px;
-  background: linear-gradient(145deg, #e0e7ff 0%, #f1f5f9 48%, #e2e8f0 100%);
-  color: #6366f1;
+  width: 237px;
+  height: 237px;
+  flex-shrink: 0;
+  margin-left: -10px;
 }
 
-.teach-empty__art-ico {
-  width: 40px;
-  height: 40px;
-  opacity: 0.9;
-}
-
-.teach-empty__spark {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: #93c5fd;
-  opacity: 0.85;
-  transform: rotate(12deg);
+.teach-empty__art-img {
+  width: 237px;
+  height: 237px;
+  object-fit: contain;
+  display: block;
 }
 
 .teach-empty__text {
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+  font-size: 18px;
+  font-weight: 700;
+  color: #222222;
 }
 
 @media (max-width: 960px) {
@@ -1336,6 +1857,8 @@ function resetRegionFilter() {
     height: auto;
     min-height: 280px;
     max-height: 42vh;
+    margin-bottom: 0;
+    padding: 16px 14px 18px 16px;
     border: 1px solid rgba(15, 23, 42, 0.06);
     border-radius: 0;
   }
@@ -1347,9 +1870,21 @@ function resetRegionFilter() {
     height: auto;
   }
 
-  .teach-filter__label {
+  .teach-panel__toolbar {
+    align-items: stretch;
+  }
+
+  .teach-filter--toolbar {
+    margin-left: 0;
     width: 100%;
-    margin-right: 0;
+    justify-content: flex-end;
+  }
+
+  .teach-filter__toolbar-row {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 }
 </style>

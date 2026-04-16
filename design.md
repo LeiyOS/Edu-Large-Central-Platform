@@ -8,6 +8,7 @@
 2. 登录页：`src/components/LoginPage.vue`
 3. 管理后台壳层：`src/components/admin/AdminLayout.vue`
 4. 列表示例（账号列表）：`src/components/admin/AccountListPage.vue`
+5. 教学 / 学案页（通栏 + 左树右表）：`src/components/admin/TeachingPage.vue`
 
 ---
 
@@ -53,6 +54,7 @@
 | 表格分割线（列表页）       | `rgba(15, 23, 42, 0.055)`（`AccountListPage` 内 `--hairline`）；更浅分隔 `--hairline-faint: rgba(15, 23, 42, 0.04)` | 单元格 / 表头区域分隔                    |
 | 列表页主色别名          | `--primary: #F10C0C`（与 `--color-primary` 对齐，`AccountListPage` 内 `v-bind`）                                   | 按钮、幽灵按钮底等                       |
 | 状态徽标             | 绿 / 红 / 橙透明底                                                                                                | 正常、已禁用、已离职（见 `AccountListPage`） |
+| 搜索清除钮（圆底）        | `#ADA9A3`（hover `#9D9993`），白叉图标                                                                               | `TeachingPage` 区域筛选、版本树搜索等，绝对定位不占 flex 宽度 |
 
 
 **主按钮不可用**：在保持品牌色的前提下使用 `**opacity: 0.4`**（逻辑示意），避免随意改为灰色实底。
@@ -128,6 +130,7 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 | 主内容衬底     | `**--admin-canvas: #fefefe`**                                                                                                    |
 | 主内容区      | `slot` 置于 `main.admin-main`；**中间区块随视口变宽变窄横向铺满**（列表页根节点 `width: 100%`，不再使用版心 `max-width` 居中）                                      |
 | 主区内边距（纵向） | `main.admin-main`：**上 20px**，**下** `max(24px, env(safe-area-inset-bottom))`                                                      |
+| 学案页主区底内边距 | 当主槽位内存在 **`.teach-page`** 时：`main.admin-main` **仅保留** `padding-bottom: max(0px, env(safe-area-inset-bottom))`（去掉默认 **24px**），使左侧 `teach-aside` 与主内容区底缘对齐；底部留白由 `.teach-panel` 等子块 `padding-bottom` **补回**（`calc(20px + max(24px, env(safe-area-inset-bottom)))`） |
 | ≤720px 适配 | `--admin-inline-gutter: 16px`；**顶栏**可折行（`height: auto`，`min-height: var(--header-h)`，上下各 **10px** 内边距）；**侧栏内轨** `16px 12px 20px` |
 
 
@@ -195,7 +198,7 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 
 ### 7.4 登录：扫码 Tab（企业微信）
 
-- 说明文案 + **企业微信** 图标（`WeCom.svg`）；占位二维码外框 **200×200**，外层 `**#f1f5f9**`、**16px** 圆角；内层棋盘格占位 **8px** 圆角（见 `qr-frame` / `qr-frame__inner`）。
+- 说明文案 + **企业微信** 图标（`WeCom.svg`）；占位二维码外框 **200×200**，外层 `**#f1f5f9`**、**16px** 圆角；内层棋盘格占位 **8px** 圆角（见 `qr-frame` / `qr-frame__inner`）。
 - 辅助说明 **12px**、`#94a3b8`。
 
 ### 7.5 列表页：筛选行（`filter-field__line`）
@@ -224,10 +227,13 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 
 ### 7.9 管理后台壳层
 
-- **顶栏**：业务 Tab 带 **chevron-down**（`aria-haspopup`）；右侧 **通知** **主色角标**（约 **18px** 高、**6px** 圆角、**11px** 字重 **700**）。**消息** 入口由 `showHeaderMessageBtn` 控制，当前实现为 `**false**`（不展示），需要时改为 `true`。
-- **侧栏**：**相邻分组之间** **1px** 分隔线（`::before`，**左右各内缩 10px`**，非通栏）；色 `rgba(15, 23, 42, 0.07)`，收起态略加深 **0.08**。当前项 **半透明白底 + 轻阴影 + 内高光描边**，字 / 图标为 **深色**（`#0f172a`）。
+- **顶栏**：业务 Tab 带 **chevron-down**（`aria-haspopup`）；右侧 **通知** **主色角标**（约 **18px** 高、**6px** 圆角、**11px** 字重 **700**）。**消息** 入口由 `showHeaderMessageBtn` 控制，当前实现为 `**false`**（不展示），需要时改为 `true`。
+- **侧栏**：**相邻分组之间** **1px** 分隔线（`::before`，**左右各内缩 10px`**，非通栏）；色` rgba(15, 23, 42, 0.07)`，收起态略加深 **0.08**。当前项 **半透明白底 + 轻阴影 + 内高光描边**，字 / 图标为 **深色**（`#0f172a`）。
+- **侧栏一级图标**：`lucide:*`，尺寸 **`calc(20px * 1.2 * 0.95)`**（在 **1.2×** 基础上再缩 **5%**）。**Hover / 选中背景条**（`.admin-sidebar__item::before`）：相对行盒 **上下各内缩 2px**，`border-radius: 10px`，避免胶囊过高。
+- **侧栏二级菜单**：**无左侧图标**；左内边距 **`calc(14px + (20px * 1.2 * 0.95) + 12px)`**，使文案与一级菜单文案左对齐；默认 **13px / 500**，字色 **`#475569`**，选中 **`#0f172a`**。
+- **可展开父级菜单**（如「扫雷管理」）：行尾 **`lucide:chevron-down`**，展开时 **`transform: rotate(180deg)`**（`.admin-sidebar__item-parent-chev--expanded`）；箭头容器 **`margin-left: auto`**，贴 **行最右侧**（不与文案绑死间距）。
 - **收起态**：Logo **28px** 高、`max-width: 44px`；**第二组分组标题**在收起时 **不占高**（避免与首组菜单纵向错位，见 `.admin-shell--sidebar-collapsed` 下规则）。
-- **账号块**：白卡片；**chevron** 使用 `lucide:chevron-down`，样式上 **`transform: rotate(-90deg)`** 呈现为指向右侧（与实现一致）。
+- **账号块**：白卡片；**chevron** 使用 `lucide:chevron-down`，样式上 `**transform: rotate(-90deg)`** 呈现为指向右侧（与实现一致）。
 - **退出登录**：浅灰底 **10px** 圆角条；**12px** 字、**600** 字重，带 `log-out` 图标；收起时 **仅图标**（文案 `display: none`）。
 
 ### 7.10 新增账号弹窗（`AccountListPage`）
@@ -238,6 +244,17 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 ### 7.11 无障碍
 
 - 表单控件 `label` / `id` 关联；侧栏 FAB 带 `aria-expanded`、`aria-controls`；可聚焦控件 `focus-visible` 使用 `var(--color-focus-ring)`。
+
+### 7.12 教学页：学案题库 / 编辑版本（`TeachingPage`）
+
+- **根节点**：`.teach-page` 置于 `main.admin-main` 槽位内；与壳层配合见 **§4.2「学案页主区底内边距」**。
+- **通栏顶条**（`.teach-page__context`）：**抵消** `admin-main` 的上内边距与左右 gutter，**贴顶栏下沿**；背景 **`#f8f8f7`**，底边与顶栏一致（`var(--admin-header-hairline)`）；面包屑 **13px**，当前段字重 **600**。
+- **双栏**（`.teach-page__columns`）：左 **`.teach-aside`**（版本树 + 工具条），右 **`.teach-panel`**（主编辑区）；左右同样 **抵消** 主区 gutter，与通栏同宽。
+- **左侧栏**：宽约 **`min(308px, 34vw)`**（`260px`～`360px` 约束），背景 **`#f9f8f7`**，**右边框**与主区分隔；版本树搜索为 **透明底、无底边线** 行内输入（占位 **`#999`**）。**「关联大纲」** 为主色矮钮（**34px** 高、**8px** 圆角），与右侧筛选行控制高度一致。
+- **右侧主面板**（`.teach-panel`）：白底；标题约 **`1.375rem` / 700～800**；版本类型为 **浅灰胶囊**（`#f3f3f3`，文案 **`#7d7a75`**）。
+- **区域筛选工具栏**（`.teach-filter--toolbar`）：与标题区 **底对齐**，靠右；**行高 34px**（`--teach-filter-ctrl-height`）。**放大镜**为 **32×32** 热区，展开后显示输入；占位 **「请输入区域名称」**；**清除钮**为 **`#ADA9A3` 圆底 + 白叉**，**绝对定位**在输入区右侧，**不参与 flex 占位**（避免叉显隐时输入区横向跳动）；清除后 **收起**搜索输入（`.teach-filter__line--search-collapsed`）。**「关联区域」** 主色按钮（**6px** 圆角，与列表页 **8px** 筛选钮区分）。
+- **关联区域表格**（`.teach-table`）：极简 **仅横线、无竖线**；表头 **13px / 500 / `#64748b`**，**底部分割线** `rgba(15, 23, 42, 0.08)`；数据行底边 **`0.06` 透明度**；**无数据时表头仍渲染**，「区域 / 操作」与表头下分割线保留；**最后一行保留底部分割线**（勿用 `tr:last-child { border-bottom: none }` 去掉）。表头「区域 / 操作」可用 **Material Design Icons**（`mdi:map-marker` / `mdi:tune`）与行内 **Lucide** 并存。操作列宽约 **140px**。
+- **空状态**（`.teach-empty--inline`）：排在表头下方，**最小高度约 200px**；插图使用 **`src/assets/404-img.png`**（`import` 绑定），展示尺寸约 **237×237**，容器 **`margin-left: -10px`** 做视觉左移对齐；文案 **「还没有设置关联区域」** — **18px / `#222222` / `font-weight: 700`**。
 
 ---
 
@@ -273,7 +290,8 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 - `**safe-area`** 与 `**focus-visible`** 是否覆盖
 - 管理后台主内容是否 **左右对称 gutter**，且内容区 **横向可随屏拉伸**（避免无意的 `margin: 0 auto` + `max-width` 造成仅单侧留白增大）
 - 列表类 **可折叠筛选**、**弹出层选择器** 是否与 `AccountListPage` 的聚焦环、动效与无障碍约定一致
-- 图标是否统一 **Lucide**
+- 学案 / 教学页是否遵循 **§4.2** 与 **§7.12**（主区底内边距、`teach-panel` 补偿、表头常驻、空状态与清除钮）
+- 图标是否统一 **Lucide**（教学页表头允许 **MDI** 与 Lucide 混用，见 **§7.12**）
 
 ---
 
@@ -286,6 +304,7 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 | `src/components/LoginPage.vue`             | 登录布局、分段器、底边线输入、扫码 Tab       |
 | `src/components/admin/AdminLayout.vue`     | 侧栏 / 顶栏 / 主区槽位、留白变量、通知角标    |
 | `src/components/admin/AccountListPage.vue` | 可展开筛选、弹出选择器、表格、状态、分页、新增账号弹窗 |
+| `src/components/admin/TeachingPage.vue`     | 学案通栏顶条、左栏版本树、右栏关联区域表与空状态、主区 `has(.teach-page)` 底边距配合 |
 
 
 若**代码与本文冲突**：以**当前已合并的代码**为准更新本文件，或由产品裁定后双端同步修改。

@@ -133,16 +133,24 @@ const sidebarGroupsSource = [
   },
 ] as const
 
+type TeachingSidebarLeaf = { label: string; icon: string }
+type TeachingSidebarEntry = TeachingSidebarLeaf | (TeachingSidebarLeaf & { children: TeachingSidebarLeaf[] })
+
 /** 教学 Tab：侧栏入口（主区由 App.vue 固定为 TeachingPage） */
-const teachingSidebarGroupsSource = [
+const teachingSidebarGroupsSource: { title: string; items: TeachingSidebarEntry[] }[] = [
   {
     title: '题库管理',
     items: [
       { label: '题库搜题', icon: 'lucide:search' },
-      { label: '扫雷管理', icon: 'lucide:scan-search' },
-      { label: '随堂测', icon: 'lucide:clipboard-list' },
-      { label: '学案题库', icon: 'lucide:book-open' },
-      { label: '导学题库', icon: 'lucide:book-marked' },
+      {
+        label: '扫雷管理',
+        icon: 'lucide:scan-search',
+        children: [
+          { label: '随堂测', icon: 'lucide:clipboard-list' },
+          { label: '学案题库', icon: 'lucide:book-open' },
+          { label: '导学题库', icon: 'lucide:book-marked' },
+        ],
+      },
     ],
   },
   {
@@ -161,22 +169,46 @@ const teachingSidebarGroupsSource = [
       { label: '系统参数', icon: 'lucide:sliders-horizontal' },
     ],
   },
-] as const
+]
 
 const TEACHING_SIDEBAR_LABELS: Set<string> = new Set(
-  teachingSidebarGroupsSource.flatMap((g) => g.items.map((i) => i.label)),
+  teachingSidebarGroupsSource.flatMap((g) =>
+    g.items.flatMap((i) => ('children' in i && i.children ? i.children.map((c) => c.label) : [i.label])),
+  ),
 )
 
 const activeSidebarLabel = ref('组织管理')
 
-const sidebarGroups = computed(() => {
+type SidebarListItem =
+  | { label: string; icon: string; active: boolean; children?: undefined }
+  | {
+      label: string
+      icon: string
+      children: { label: string; icon: string; active: boolean }[]
+      active?: undefined
+    }
+
+const sidebarGroups = computed((): { title: string; items: SidebarListItem[] }[] => {
   const src = props.activeTopNav === '教学' ? teachingSidebarGroupsSource : sidebarGroupsSource
   return src.map((group) => ({
     title: group.title,
-    items: group.items.map((item) => ({
-      ...item,
-      active: item.label === activeSidebarLabel.value,
-    })),
+    items: group.items.map((item): SidebarListItem => {
+      if ('children' in item && item.children) {
+        return {
+          label: item.label,
+          icon: item.icon,
+          children: item.children.map((c) => ({
+            ...c,
+            active: c.label === activeSidebarLabel.value,
+          })),
+        }
+      }
+      return {
+        label: item.label,
+        icon: item.icon,
+        active: item.label === activeSidebarLabel.value,
+      }
+    }),
   }))
 })
 
@@ -199,6 +231,24 @@ function onSidebarItemClick(label: string) {
   emit('sidebar-nav', label)
 }
 
+/** 扫雷管理等二级分组：true 表示展开；缺省为展开 */
+const teachingSubExpanded = ref<Record<string, boolean>>({})
+
+function isTeachingSubExpanded(parentLabel: string): boolean {
+  return teachingSubExpanded.value[parentLabel] !== false
+}
+
+function showTeachingSublist(parentLabel: string): boolean {
+  if (isSidebarCollapsed.value) return false
+  return isTeachingSubExpanded(parentLabel)
+}
+
+function onTeachingParentClick(parentLabel: string) {
+  if (isSidebarCollapsed.value) return
+  const cur = isTeachingSubExpanded(parentLabel)
+  teachingSubExpanded.value = { ...teachingSubExpanded.value, [parentLabel]: !cur }
+}
+
 function toggleAccountMenu() {
   accountMenuOpen.value = !accountMenuOpen.value
   if (accountMenuOpen.value) {
@@ -215,28 +265,6 @@ function onAccountMenuLogout() {
 <template>
   <div class="admin-shell" :class="{ 'admin-shell--sidebar-collapsed': isSidebarCollapsed }">
     <aside id="admin-sidebar-nav" class="admin-sidebar" aria-label="侧栏导航">
-      <button
-        type="button"
-        class="admin-sidebar__collapse-fab"
-        :aria-expanded="isNarrowViewport ? undefined : !isSidebarCollapsed"
-        :aria-label="
-          isNarrowViewport
-            ? '当前为窄屏，侧栏固定为图标模式'
-            : isSidebarCollapsed
-              ? '展开侧栏'
-              : '收起侧栏'
-        "
-        aria-controls="admin-sidebar-nav"
-        :disabled="isNarrowViewport"
-        :title="isNarrowViewport ? '窄屏下侧栏固定为图标模式' : isSidebarCollapsed ? '展开侧栏' : '收起侧栏'"
-        @click="toggleSidebarCollapse"
-      >
-        <Icon
-          :icon="isSidebarCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-left'"
-          class="admin-sidebar__collapse-fab-icon"
-          aria-hidden="true"
-        />
-      </button>
       <div class="admin-sidebar__inner">
         <div class="admin-sidebar__brand">
           <img
@@ -255,22 +283,93 @@ function onAccountMenuLogout() {
               {{ group.title }}
             </div>
             <ul class="admin-sidebar__list">
-              <li v-for="(item, ii) in group.items" :key="ii">
-                <button
-                  type="button"
-                  class="admin-sidebar__item"
-                  :class="{ 'admin-sidebar__item--active': item.active }"
-                  :title="item.label"
-                  @click="onSidebarItemClick(item.label)"
-                >
-                  <Icon :icon="item.icon" class="admin-sidebar__item-ico" aria-hidden="true" />
-                  <span class="admin-sidebar__item-text">
-                    {{ item.label }}
-                  </span>
-                </button>
-              </li>
+              <template v-for="(item, ii) in group.items" :key="`${item.label}-${ii}`">
+                <li v-if="item.children?.length" class="admin-sidebar__nest">
+                  <button
+                    type="button"
+                    class="admin-sidebar__item admin-sidebar__item--parent"
+                    :class="{
+                      'admin-sidebar__item--active-parent':
+                        item.children.some((c) => c.active) && !isSidebarCollapsed,
+                      'admin-sidebar__item--active':
+                        isSidebarCollapsed && item.children.some((c) => c.active),
+                    }"
+                    :aria-expanded="showTeachingSublist(item.label)"
+                    :title="item.label"
+                    @click="onTeachingParentClick(item.label)"
+                  >
+                    <Icon :icon="item.icon" class="admin-sidebar__item-ico" aria-hidden="true" />
+                    <span class="admin-sidebar__item-text">{{ item.label }}</span>
+                    <Icon
+                      v-if="!isSidebarCollapsed"
+                      icon="lucide:chevron-down"
+                      class="admin-sidebar__item-parent-chev"
+                      :class="{ 'admin-sidebar__item-parent-chev--expanded': isTeachingSubExpanded(item.label) }"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <ul
+                    v-show="showTeachingSublist(item.label)"
+                    class="admin-sidebar__sublist"
+                    role="group"
+                    :aria-label="`${item.label}子菜单`"
+                  >
+                    <li v-for="child in item.children" :key="child.label" class="admin-sidebar__sublist-item">
+                      <button
+                        type="button"
+                        class="admin-sidebar__item admin-sidebar__item--sub"
+                        :class="{ 'admin-sidebar__item--active': child.active }"
+                        :title="child.label"
+                        @click="onSidebarItemClick(child.label)"
+                      >
+                        <span class="admin-sidebar__item-text">{{ child.label }}</span>
+                      </button>
+                    </li>
+                  </ul>
+                </li>
+                <li v-else class="admin-sidebar__nest">
+                  <button
+                    type="button"
+                    class="admin-sidebar__item"
+                    :class="{ 'admin-sidebar__item--active': item.active }"
+                    :title="item.label"
+                    @click="onSidebarItemClick(item.label)"
+                  >
+                    <Icon :icon="item.icon" class="admin-sidebar__item-ico" aria-hidden="true" />
+                    <span class="admin-sidebar__item-text">
+                      {{ item.label }}
+                    </span>
+                  </button>
+                </li>
+              </template>
             </ul>
           </div>
+        </div>
+
+        <div class="admin-sidebar__footer">
+          <button
+            type="button"
+            class="admin-sidebar__collapse-btn"
+            :aria-expanded="isNarrowViewport ? undefined : !isSidebarCollapsed"
+            :aria-label="
+              isNarrowViewport
+                ? '当前为窄屏，侧栏固定为图标模式'
+                : isSidebarCollapsed
+                  ? '展开侧栏'
+                  : '收起侧栏'
+            "
+            aria-controls="admin-sidebar-nav"
+            :disabled="isNarrowViewport"
+            :title="isNarrowViewport ? '窄屏下侧栏固定为图标模式' : isSidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+            @click="toggleSidebarCollapse"
+          >
+            <Icon
+              :icon="isSidebarCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-left'"
+              class="admin-sidebar__collapse-btn-ico"
+              aria-hidden="true"
+            />
+            <span v-if="!isSidebarCollapsed" class="admin-sidebar__collapse-btn-label">收起侧栏</span>
+          </button>
         </div>
       </div>
     </aside>
@@ -384,8 +483,9 @@ function onAccountMenuLogout() {
 <style scoped>
 .admin-shell {
   --header-h: 64px;
-  --sidebar-w: 244px;
+  --sidebar-w-expanded: 244px;
   --sidebar-w-collapsed: 72px;
+  --sidebar-w: var(--sidebar-w-expanded);
   /** 主区（顶栏 + main）左右对称留白，中间内容随宽度拉伸 */
   --admin-inline-gutter: 32px;
   --admin-canvas: #fefefe;
@@ -728,7 +828,6 @@ function onAccountMenuLogout() {
 }
 
 .admin-sidebar {
-  position: relative;
   z-index: 40;
   flex: 0 0 var(--sidebar-w);
   width: var(--sidebar-w);
@@ -742,56 +841,66 @@ function onAccountMenuLogout() {
     width 0.28s ease;
 }
 
-.admin-sidebar__collapse-fab {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  z-index: 50;
-  width: 30px;
-  height: 30px;
+/* 与历史侧栏底部「退出登录」按钮同款底色与字号；通栏宽度，图标与文案在按钮内居中 */
+.admin-sidebar__footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.admin-sidebar__collapse-btn {
   margin: 0;
-  padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 50%;
-  background: #fff;
-  box-shadow:
-    0 2px 8px rgba(15, 23, 42, 0.08),
-    0 1px 2px rgba(15, 23, 42, 0.04);
-  transform: translate(50%, -50%);
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.05);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
   transition:
     background 0.2s ease,
-    color 0.2s ease,
-    opacity 0.2s ease,
-    box-shadow 0.2s ease;
+    color 0.2s ease;
 }
 
-.admin-sidebar__collapse-fab:hover:not(:disabled) {
-  background: #f8fafc;
+.admin-sidebar__collapse-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.08);
   color: #0f172a;
-  box-shadow:
-    0 4px 14px rgba(15, 23, 42, 0.1),
-    0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.admin-sidebar__collapse-fab:focus-visible {
+.admin-sidebar__collapse-btn:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.admin-sidebar__collapse-fab:disabled {
+.admin-sidebar__collapse-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.admin-sidebar__collapse-fab-icon {
-  width: 17px;
-  height: 17px;
+.admin-sidebar__collapse-btn-ico {
+  width: calc(18px * 1.2 * 0.95);
+  height: calc(18px * 1.2 * 0.95);
   flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.admin-sidebar__collapse-btn-label {
+  white-space: nowrap;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn {
+  padding: 8px 12px;
+  min-height: 36px;
+  box-sizing: border-box;
 }
 
 .admin-sidebar__inner {
@@ -873,12 +982,14 @@ function onAccountMenuLogout() {
 }
 
 .admin-sidebar__item {
+  position: relative;
+  z-index: 0;
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  margin: 0 0 4px;
-  padding: 11px 14px;
+  margin: 0 0 -2px;
+  padding: 9px 14px;
   border: none;
   border-radius: 12px;
   background: transparent;
@@ -889,13 +1000,38 @@ function onAccountMenuLogout() {
   text-align: left;
   cursor: pointer;
   transition:
-    background 0.2s ease,
     color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
-.admin-sidebar__item:hover {
+/** hover / 选中背景：比按钮块高度缩短 4px（上下各内收 2px），不改变 padding，行距与相邻项间距不变 */
+.admin-sidebar__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 10px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background 0.2s ease;
+}
+
+.admin-sidebar__item > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-sidebar__item:hover::before {
+  opacity: 1;
   background: rgba(15, 23, 42, 0.05);
+}
+
+.admin-sidebar__item:hover {
   color: var(--color-text-strong);
 }
 
@@ -905,12 +1041,14 @@ function onAccountMenuLogout() {
 }
 
 .admin-sidebar__item--active {
-  background: rgba(255, 255, 255, 0.72);
   color: #0f172a;
   font-weight: 600;
-  box-shadow:
-    0 1px 3px rgba(15, 23, 42, 0.06),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+  box-shadow: none;
+}
+
+.admin-sidebar__item--active::before {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .admin-sidebar__item--active .admin-sidebar__item-ico {
@@ -919,8 +1057,8 @@ function onAccountMenuLogout() {
 
 .admin-sidebar__item-ico {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: calc(20px * 1.2 * 0.95);
+  height: calc(20px * 1.2 * 0.95);
   color: #64748b;
 }
 
@@ -934,6 +1072,73 @@ function onAccountMenuLogout() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.admin-sidebar__nest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-sidebar__item--parent {
+  width: 100%;
+}
+
+.admin-sidebar__item-parent-chev {
+  margin-left: auto;
+  width: calc(16px * 1.2 * 0.95);
+  height: calc(16px * 1.2 * 0.95);
+  flex-shrink: 0;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+/** 默认朝下；展开子菜单时旋转为朝上 */
+.admin-sidebar__item-parent-chev--expanded {
+  transform: rotate(180deg);
+}
+
+.admin-sidebar__item--active-parent::before {
+  opacity: 1;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.admin-sidebar__sublist {
+  list-style: none;
+  margin: 0 0 2px;
+  padding: 4px 0 0;
+  /** 不在此缩进容器，子项按钮与一级同宽；缩进由 .admin-sidebar__item--sub 的 padding-left 承担 */
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.admin-sidebar__sublist-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-sidebar__item--sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  /** 无图标：左内边距 = 一级与 .admin-sidebar__item-ico + gap 同宽，文案与一级菜单文案左对齐 */
+  padding-left: calc(14px + (20px * 1.2 * 0.95) + 12px);
+  gap: 0;
+}
+
+/** 二级选中：文案与 .admin-sidebar__item--active .admin-sidebar__item-ico 同色（避免 --sub 的 color 覆盖选中态） */
+.admin-sidebar__item--sub.admin-sidebar__item--active {
+  color: #0f172a;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__sublist {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__item--sub {
+  font-size: inherit;
 }
 
 .admin-body {
@@ -959,6 +1164,14 @@ function onAccountMenuLogout() {
   background-color: var(--admin-canvas);
 }
 
+/**
+ * 学案页：左侧 teach-aside 需与 main 边框盒底对齐；默认 24px 底内边距会使整块主区内容整体上移，
+ * 侧栏比 main 底缘短一截。此处仅保留 safe-area，底部留白由 teach-panel 等子块 padding 承担。
+ */
+.admin-main:has(.teach-page) {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
 /* 收起：仅保留图标与必要控件 */
 .admin-shell--sidebar-collapsed .admin-sidebar {
   border-right: 1px solid rgba(15, 23, 42, 0.08);
@@ -968,6 +1181,19 @@ function onAccountMenuLogout() {
 .admin-shell--sidebar-collapsed .admin-sidebar__inner {
   padding: 22px 8px 20px;
   border-right: none;
+  /* 背景层按展开宽度绘制，窄栏水平居中裁剪，显示中间段、避免径向渐变被横向挤压 */
+  overflow-x: hidden;
+  background-size:
+    var(--sidebar-w-expanded) 100%,
+    var(--sidebar-w-expanded) 100%,
+    var(--sidebar-w-expanded) 100%,
+    100% 100%;
+  background-position:
+    center top,
+    center top,
+    center top,
+    center top;
+  background-repeat: no-repeat;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__brand {
@@ -1033,12 +1259,32 @@ function onAccountMenuLogout() {
 
 .admin-shell--sidebar-collapsed .admin-sidebar__item {
   justify-content: center;
-  padding: 11px 10px;
+  padding: 9px 10px;
   gap: 0;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__item-text {
   display: none;
+}
+
+/** 收起：默认图标 80% 不透明；hover / 选中 / 父级选中 / 键盘聚焦 保持原样（不透明） */
+.admin-shell--sidebar-collapsed .admin-sidebar__item-ico {
+  opacity: 0.8;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__item:hover:not(:disabled) .admin-sidebar__item-ico,
+.admin-shell--sidebar-collapsed .admin-sidebar__item:focus-visible .admin-sidebar__item-ico,
+.admin-shell--sidebar-collapsed .admin-sidebar__item--active .admin-sidebar__item-ico,
+.admin-shell--sidebar-collapsed .admin-sidebar__item--active-parent .admin-sidebar__item-ico {
+  opacity: 1;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn:not(:disabled) .admin-sidebar__collapse-btn-ico {
+  opacity: 0.8;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn:hover:not(:disabled) .admin-sidebar__collapse-btn-ico {
+  opacity: 1;
 }
 
 @media (max-width: 720px) {
