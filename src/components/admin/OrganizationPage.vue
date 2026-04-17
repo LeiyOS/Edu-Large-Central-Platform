@@ -186,7 +186,6 @@ function resetFilter() {
   <div class="org-page">
     <div class="org-page__head">
       <h2 id="org-structure-title" class="org-panel__title org-page__head-title">
-        <Icon icon="ph:tree-structure-fill" class="org-page__head-title-ico" aria-hidden="true" />
         组织架构
       </h2>
       <section class="org-filter" aria-label="筛选">
@@ -340,8 +339,13 @@ function resetFilter() {
   gap: 8px;
   flex: 0 0 auto;
   min-width: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 500;
+}
+
+/* 覆盖后文 .org-panel__title 的默认字号，确保页头标题与“账号列表”一致 */
+.org-panel__title.org-page__head-title {
+  font-size: 1.25rem;
 }
 
 .org-page__head-title-ico {
@@ -373,19 +377,17 @@ function resetFilter() {
  */
 .org-filter__line {
   position: relative;
-  flex: 0 1 33%;
-  max-width: 33%;
+  flex: 0 1 26.4%;
+  max-width: 26.4%;
   min-width: 0;
-  min-height: 46px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.022),
-    0 8px 22px rgba(15, 23, 42, 0.028);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.0225);
   transition:
     flex-basis 0.28s ease,
     max-width 0.28s ease,
@@ -393,10 +395,14 @@ function resetFilter() {
     box-shadow 0.2s ease;
 }
 
+.org-filter__line:hover:not(:focus-within) {
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.065);
+}
+
 /** 输入框或同排操作钮任一聚焦时拉长，避免点「查询」后条立刻缩回 */
 .org-filter:focus-within .org-filter__line {
-  flex: 0 1 50%;
-  max-width: 50%;
+  flex: 0 1 40%;
+  max-width: 40%;
 }
 
 .org-filter__line:focus-within {
@@ -467,7 +473,7 @@ function resetFilter() {
   gap: 6px;
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.02em;
   cursor: pointer;
   border-radius: 8px;
@@ -490,7 +496,7 @@ function resetFilter() {
 }
 
 .org-btn--primary {
-  height: 46px;
+  height: 40px;
   padding: 0 18px;
   border: none;
   background: var(--primary);
@@ -506,7 +512,7 @@ function resetFilter() {
 }
 
 .org-btn--outline {
-  height: 46px;
+  height: 40px;
   padding: 0 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: #fff;
@@ -702,7 +708,7 @@ function resetFilter() {
   text-align: left;
   padding: 12px 24px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   color: #64748b;
   background: #f8fafc;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
@@ -810,7 +816,7 @@ function resetFilter() {
 
 .org-tree__name {
   min-width: 0;
-  font-weight: 500;
+  font-weight: 400;
   font-size: 14px;
   color: #334155;
   line-height: 1.35;

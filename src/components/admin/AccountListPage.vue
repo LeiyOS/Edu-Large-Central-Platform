@@ -296,7 +296,10 @@ function closeContextMenu() {
 function openRowContextMenu(e: MouseEvent, row: AccountRow) {
   e.preventDefault()
   const menuW = 200
-  const menuH = 132
+  const isMultiSelectedTarget =
+    selectedIds.value.includes(row.id) && selectedIds.value.length > 0
+  const targetCount = isMultiSelectedTarget ? selectedIds.value.length : 1
+  const menuH = targetCount === 1 ? 214 : 132
   const pad = 8
   let x = e.clientX
   let y = e.clientY
@@ -343,6 +346,24 @@ function contextDelete() {
   selectedIds.value = selectedIds.value.filter((id) => !ids.has(id))
   closeContextMenu()
   showToast(ids.size > 1 ? `已删除 ${ids.size} 个账号` : '已删除')
+}
+
+function contextResetPassword() {
+  const ids = contextTargetIds()
+  if (ids.length !== 1) return
+  closeContextMenu()
+  showToast('已重置密码')
+}
+
+function contextEdit() {
+  const ids = contextTargetIds()
+  if (ids.length !== 1) return
+  closeContextMenu()
+  showToast('编辑功能开发中')
+}
+
+function isSingleContextTarget() {
+  return contextTargetIds().length === 1
 }
 
 /** 展开后显示角色、状态 */
@@ -1067,7 +1088,7 @@ function onConfirmAdd() {
                     @change="toggleSelectAllOnPage"
                   />
                   <span class="data-table__cb-visual" aria-hidden="true">
-                    <Icon icon="lucide:check" class="data-table__cb-tick" aria-hidden="true" />
+                    <Icon icon="heroicons:check-20-solid" class="data-table__cb-tick" aria-hidden="true" />
                   </span>
                 </label>
               </th>
@@ -1101,7 +1122,7 @@ function onConfirmAdd() {
                     @change="toggleRowSelected(row.id)"
                   />
                   <span class="data-table__cb-visual" aria-hidden="true">
-                    <Icon icon="lucide:check" class="data-table__cb-tick" aria-hidden="true" />
+                    <Icon icon="heroicons:check-20-solid" class="data-table__cb-tick" aria-hidden="true" />
                   </span>
                 </label>
               </td>
@@ -1197,6 +1218,26 @@ function onConfirmAdd() {
         <button type="button" class="account-row-menu__item" role="menuitem" @click="contextDisable">
           <Icon icon="lucide:ban" class="account-row-menu__ico" aria-hidden="true" />
           禁用
+        </button>
+        <button
+          v-if="isSingleContextTarget()"
+          type="button"
+          class="account-row-menu__item"
+          role="menuitem"
+          @click="contextResetPassword"
+        >
+          <Icon icon="lucide:key-round" class="account-row-menu__ico" aria-hidden="true" />
+          重置密码
+        </button>
+        <button
+          v-if="isSingleContextTarget()"
+          type="button"
+          class="account-row-menu__item"
+          role="menuitem"
+          @click="contextEdit"
+        >
+          <Icon icon="lucide:pencil" class="account-row-menu__ico" aria-hidden="true" />
+          编辑
         </button>
         <div class="account-row-menu__sep" role="separator" />
         <button
@@ -1518,7 +1559,7 @@ function onConfirmAdd() {
   min-width: 56px;
   padding: 0 14px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.02em;
   border-radius: 8px;
 }
@@ -1578,7 +1619,7 @@ function onConfirmAdd() {
   margin: 0 12px 0 0;
   /* 与 .filter-field__input / __select 同为 15px，避免上下排标题与控件视觉不一致 */
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 400;
   color: #475569;
   letter-spacing: 0.02em;
   line-height: 1.4;
@@ -1596,8 +1637,8 @@ function onConfirmAdd() {
   border-radius: 8px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  /** 环境阴影：在 0.031 基础上再浅 20% → 0.025 */
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.025);
+  /** 环境阴影：在 0.025 基础上再降 10% → 0.0225 */
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.0225);
   transition:
     border-color 0.2s ease,
     background 0.2s ease,
@@ -1610,7 +1651,7 @@ function onConfirmAdd() {
 
 .filter-field__line:focus-within {
   background: #fff;
-  border-color: color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
+  border-color: color-mix(in srgb, rgba(241, 12, 12, 0.4594) 32%, white);
   /** 环境阴影 + 外侧 1px 环（与 1px 边框合成 2px 描边），不改变内容盒 */
   box-shadow:
     0 2px 10px rgba(15, 23, 42, 0.025),
@@ -1634,7 +1675,7 @@ function onConfirmAdd() {
 }
 
 .filter-field__input::placeholder {
-  color: var(--color-placeholder);
+  color: color-mix(in srgb, var(--color-placeholder) 90%, white);
   /* 与 .filter-field__select 展示字一致，避免部分浏览器默认缩小 placeholder */
   font-size: 15px;
   line-height: 1.4;
@@ -1734,7 +1775,7 @@ function onConfirmAdd() {
   color: #fff;
   font: inherit;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.02em;
   cursor: pointer;
   transition:
@@ -1793,7 +1834,7 @@ function onConfirmAdd() {
   background: #fff;
   font: inherit;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 400;
   color: #0f172a;
   cursor: pointer;
   transition:
@@ -1869,7 +1910,7 @@ function onConfirmAdd() {
 .account-panel__title {
   margin: 0;
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--color-text-strong);
   letter-spacing: -0.03em;
   line-height: 1.25;
@@ -1924,6 +1965,7 @@ function onConfirmAdd() {
 .account-panel__add {
   flex-shrink: 0;
   margin-left: auto;
+  padding-inline: 16px;
 }
 
 .account-table-wrap {
@@ -1941,13 +1983,13 @@ function onConfirmAdd() {
 }
 
 .data-table__accent {
-  font-weight: 700;
+  font-weight: 400;
   color: #0f172a;
   letter-spacing: -0.01em;
 }
 
 .data-table__accent--medium {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .table-wrap {
@@ -2009,13 +2051,13 @@ function onConfirmAdd() {
   text-align: left;
   padding: 6px 20px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: #64748b;
   letter-spacing: -0.01em;
   line-height: 1.35;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: none;
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -2023,7 +2065,7 @@ function onConfirmAdd() {
 .data-table td {
   padding: 6px 20px;
   border: none;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: none;
   color: var(--color-text);
   line-height: 1.35;
   vertical-align: middle;
@@ -2044,7 +2086,17 @@ function onConfirmAdd() {
 }
 
 .data-table tbody tr:hover {
-  background: rgba(15, 23, 42, 0.02);
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.data-table tbody tr:hover td:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.data-table tbody tr:hover td:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .data-table tbody tr.data-table__tr--selected {
@@ -2077,7 +2129,7 @@ function onConfirmAdd() {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
   color: #64748b;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 操作列：td 保持 table-cell，避免 display:flex 打断行分割线；flex 仅用于内层 */
@@ -2175,6 +2227,11 @@ function onConfirmAdd() {
   display: block;
   width: 100%;
   height: 100%;
+  stroke-width: 2.5;
+}
+
+.data-table__cb-tick :deep(svg path) {
+  stroke-width: 2.8 !important;
 }
 
 .data-table__cb-input:checked + .data-table__cb-visual .data-table__cb-tick {
@@ -2206,8 +2263,8 @@ function onConfirmAdd() {
   left: 3px;
   right: 3px;
   top: 50%;
-  height: 2px;
-  margin-top: -1px;
+  height: 1.5px;
+  margin-top: -0.75px;
   background: #fff;
   border: none;
   transform: none;
@@ -2287,7 +2344,7 @@ function onConfirmAdd() {
   background: none;
   font: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--primary);
   cursor: pointer;
   flex-shrink: 0;
@@ -2313,7 +2370,7 @@ function onConfirmAdd() {
   padding: 7px 12px;
   border-radius: 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.01em;
   text-decoration: none;
   opacity: 1;
@@ -2324,7 +2381,7 @@ function onConfirmAdd() {
 
 .link-action--pill:hover {
   opacity: 1;
-  filter: brightness(0.96);
+  filter: none;
   text-decoration: none;
 }
 
@@ -2355,6 +2412,10 @@ function onConfirmAdd() {
   color: #1e40af;
 }
 
+.link-action--reset:hover {
+  background: rgba(59, 130, 246, 0.28);
+}
+
 .link-action--reset .link-action__ico {
   color: #1e3a8a;
 }
@@ -2363,6 +2424,10 @@ function onConfirmAdd() {
 .link-action--disable {
   background: rgba(245, 158, 11, 0.2);
   color: #92400e;
+}
+
+.link-action--disable:hover {
+  background: rgba(245, 158, 11, 0.32);
 }
 
 .link-action--disable .link-action__ico {
@@ -2375,6 +2440,10 @@ function onConfirmAdd() {
   color: #047857;
 }
 
+.link-action--enable:hover {
+  background: rgba(16, 185, 129, 0.3);
+}
+
 .link-action--enable .link-action__ico {
   color: #065f46;
 }
@@ -2383,6 +2452,10 @@ function onConfirmAdd() {
 .link-action--edit {
   background: rgba(20, 184, 166, 0.18);
   color: #0f766e;
+}
+
+.link-action--edit:hover {
+  background: rgba(20, 184, 166, 0.3);
 }
 
 .link-action--edit .link-action__ico {
@@ -2395,6 +2468,10 @@ function onConfirmAdd() {
   color: #b91c1c;
 }
 
+.link-action--delete:hover {
+  background: rgba(239, 68, 68, 0.26);
+}
+
 .link-action--delete .link-action__ico {
   color: #991b1b;
 }
@@ -2404,7 +2481,7 @@ function onConfirmAdd() {
   align-items: center;
   padding: 6px 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.3;
   border-radius: 10px;
   border: none;
@@ -2435,7 +2512,15 @@ function onConfirmAdd() {
   margin-top: auto;
 }
 
+.account-panel__footer :deep(.van-pagination.account-pagination) {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
 .account-pagination :deep(.van-pagination__items) {
+  justify-content: flex-end;
   gap: 4px;
   align-items: center;
 }
