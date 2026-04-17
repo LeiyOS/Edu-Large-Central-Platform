@@ -236,6 +236,115 @@ function pageSlice() {
   return allRows.value.slice(start, start + pageSize.value)
 }
 
+/** 表格行多选 */
+const selectedIds = ref<string[]>([])
+
+function isRowSelected(id: string) {
+  return selectedIds.value.includes(id)
+}
+
+function toggleRowSelected(id: string) {
+  const arr = [...selectedIds.value]
+  const i = arr.indexOf(id)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(id)
+  selectedIds.value = arr
+}
+
+const visibleRowIds = computed(() => pageSlice().map((r) => r.id))
+
+const pageSelectionState = computed<'none' | 'some' | 'all'>(() => {
+  const ids = visibleRowIds.value
+  if (ids.length === 0) return 'none'
+  const n = ids.filter((id) => selectedIds.value.includes(id)).length
+  if (n === 0) return 'none'
+  if (n === ids.length) return 'all'
+  return 'some'
+})
+
+function toggleSelectAllOnPage() {
+  const ids = visibleRowIds.value
+  if (ids.length === 0) return
+  if (pageSelectionState.value === 'all') {
+    selectedIds.value = selectedIds.value.filter((id) => !ids.includes(id))
+  } else {
+    selectedIds.value = [...new Set([...selectedIds.value, ...ids])]
+  }
+}
+
+const selectAllCheckboxRef = ref<HTMLInputElement | null>(null)
+
+watch([pageSelectionState, selectAllCheckboxRef], () => {
+  const el = selectAllCheckboxRef.value
+  if (!el) return
+  el.indeterminate = pageSelectionState.value === 'some'
+})
+
+/** 行右键菜单 */
+const contextMenuRef = ref<HTMLElement | null>(null)
+const contextMenu = ref<{ open: boolean; x: number; y: number; rowId: string | null }>({
+  open: false,
+  x: 0,
+  y: 0,
+  rowId: null,
+})
+
+function closeContextMenu() {
+  contextMenu.value = { open: false, x: 0, y: 0, rowId: null }
+}
+
+function openRowContextMenu(e: MouseEvent, row: AccountRow) {
+  e.preventDefault()
+  const menuW = 200
+  const menuH = 132
+  const pad = 8
+  let x = e.clientX
+  let y = e.clientY
+  if (x + menuW > window.innerWidth - pad) x = window.innerWidth - menuW - pad
+  if (y + menuH > window.innerHeight - pad) y = window.innerHeight - menuH - pad
+  if (x < pad) x = pad
+  if (y < pad) y = pad
+  contextMenu.value = { open: true, x, y, rowId: row.id }
+}
+
+function contextTargetIds(): string[] {
+  const id = contextMenu.value.rowId
+  if (!id) return []
+  if (selectedIds.value.includes(id) && selectedIds.value.length > 0) {
+    return [...selectedIds.value]
+  }
+  return [id]
+}
+
+function contextEnable() {
+  const ids = new Set(contextTargetIds())
+  if (ids.size === 0) return
+  for (const r of allRows.value) {
+    if (ids.has(r.id)) r.status = 'ok'
+  }
+  closeContextMenu()
+  showToast(ids.size > 1 ? `已启用 ${ids.size} 个账号` : '已启用')
+}
+
+function contextDisable() {
+  const ids = new Set(contextTargetIds())
+  if (ids.size === 0) return
+  for (const r of allRows.value) {
+    if (ids.has(r.id)) r.status = 'disabled'
+  }
+  closeContextMenu()
+  showToast(ids.size > 1 ? `已禁用 ${ids.size} 个账号` : '已禁用')
+}
+
+function contextDelete() {
+  const ids = new Set(contextTargetIds())
+  if (ids.size === 0) return
+  allRows.value = allRows.value.filter((r) => !ids.has(r.id))
+  selectedIds.value = selectedIds.value.filter((id) => !ids.has(id))
+  closeContextMenu()
+  showToast(ids.size > 1 ? `已删除 ${ids.size} 个账号` : '已删除')
+}
+
 /** 展开后显示角色、状态 */
 const filtersExpanded = ref(false)
 
@@ -489,6 +598,11 @@ function selectRoleMenu(value: string) {
 function onGlobalDropdownDocClick(e: MouseEvent) {
   const el = e.target instanceof Node ? e.target : null
   if (!el) return
+  if (contextMenu.value.open) {
+    if (!contextMenuRef.value?.contains(el)) {
+      closeContextMenu()
+    }
+  }
   if (roleMenuOpen.value) {
     if (!roleSelectWrapRef.value?.contains(el) && !rolePanelRef.value?.contains(el)) {
       roleMenuOpen.value = false
@@ -518,21 +632,28 @@ function onGlobalDropdownDocClick(e: MouseEvent) {
 }
 
 function onDropdownViewportChange() {
+  if (contextMenu.value.open) closeContextMenu()
   if (roleMenuOpen.value) updateRolePanelPosition()
   if (deptMenuOpen.value) updateDeptPanelPosition()
   if (filterRoleMenuOpen.value) updateFilterRolePanelPosition()
   if (filterStatusMenuOpen.value) updateFilterStatusPanelPosition()
 }
 
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && contextMenu.value.open) closeContextMenu()
+}
+
 onMounted(() => {
   document.addEventListener('click', onGlobalDropdownDocClick, true)
   window.addEventListener('scroll', onDropdownViewportChange, true)
   window.addEventListener('resize', onDropdownViewportChange)
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onGlobalDropdownDocClick, true)
   window.removeEventListener('scroll', onDropdownViewportChange, true)
   window.removeEventListener('resize', onDropdownViewportChange)
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 
 watch(roleMenuOpen, async (open) => {
@@ -906,26 +1027,50 @@ function onConfirmAdd() {
     </Teleport>
 
     <section class="account-panel" aria-labelledby="account-list-title">
-      <div class="account-panel__table-box">
-        <div class="account-panel__head">
-          <div class="account-panel__titles">
-            <h2 id="account-list-title" class="account-panel__title">账号列表</h2>
-            <p class="account-panel__note">新创建账号修改密码：88888888</p>
+      <div class="account-panel__toolbar">
+        <div class="account-panel__meta">
+          <div class="account-panel__title-row">
+            <h2 id="account-list-title" class="account-panel__title">
+              <span class="account-panel__title-em">账号列表</span>
+            </h2>
           </div>
-          <button
-            type="button"
-            class="btn-primary btn-primary--ghost btn-primary--compact account-panel__add"
-            @click="openAddModal"
-          >
-            <Icon icon="lucide:plus" class="btn-primary__icon" aria-hidden="true" />
-            添加新账号
-          </button>
+          <div class="account-panel__meta-row">
+            <span class="account-panel__pill" role="note">
+              <Icon icon="lucide:info" class="account-panel__pill-ico" aria-hidden="true" />
+              <span class="account-panel__pill-text">新创建账号修改密码：88888888</span>
+            </span>
+          </div>
         </div>
+        <button
+          type="button"
+          class="btn-primary btn-primary--ghost btn-primary--compact account-panel__add"
+          @click="openAddModal"
+        >
+          <Icon icon="lucide:plus" class="btn-primary__icon" aria-hidden="true" />
+          添加新账号
+        </button>
+      </div>
 
+      <div class="account-table-wrap">
         <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
+              <th class="data-table__col-select" scope="col">
+                <label class="data-table__cb-label data-table__cb-label--head">
+                  <input
+                    ref="selectAllCheckboxRef"
+                    type="checkbox"
+                    class="data-table__cb-input"
+                    :checked="pageSelectionState === 'all'"
+                    aria-label="全选当前页"
+                    @change="toggleSelectAllOnPage"
+                  />
+                  <span class="data-table__cb-visual" aria-hidden="true">
+                    <Icon icon="lucide:check" class="data-table__cb-tick" aria-hidden="true" />
+                  </span>
+                </label>
+              </th>
               <th>员工号</th>
               <th>账号</th>
               <th>员工姓名</th>
@@ -939,7 +1084,27 @@ function onConfirmAdd() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in pageSlice()" :key="row.id">
+            <tr
+              v-for="row in pageSlice()"
+              :key="row.id"
+              class="data-table__tr"
+              :class="{ 'data-table__tr--selected': isRowSelected(row.id) }"
+              @contextmenu="openRowContextMenu($event, row)"
+            >
+              <td class="data-table__cell-select" @click.stop>
+                <label class="data-table__cb-label">
+                  <input
+                    type="checkbox"
+                    class="data-table__cb-input"
+                    :checked="isRowSelected(row.id)"
+                    :aria-label="`选择 ${row.name}`"
+                    @change="toggleRowSelected(row.id)"
+                  />
+                  <span class="data-table__cb-visual" aria-hidden="true">
+                    <Icon icon="lucide:check" class="data-table__cb-tick" aria-hidden="true" />
+                  </span>
+                </label>
+              </td>
               <td class="data-table__mono">{{ row.id }}</td>
               <td class="data-table__accent">{{ row.account }}</td>
               <td class="data-table__accent">{{ row.name }}</td>
@@ -1014,6 +1179,37 @@ function onConfirmAdd() {
         </div>
       </div>
     </section>
+
+    <Teleport to="body">
+      <div
+        v-show="contextMenu.open"
+        ref="contextMenuRef"
+        class="account-row-menu"
+        role="menu"
+        aria-label="行操作"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        @contextmenu.prevent
+      >
+        <button type="button" class="account-row-menu__item" role="menuitem" @click="contextEnable">
+          <Icon icon="lucide:circle-check" class="account-row-menu__ico" aria-hidden="true" />
+          启用
+        </button>
+        <button type="button" class="account-row-menu__item" role="menuitem" @click="contextDisable">
+          <Icon icon="lucide:ban" class="account-row-menu__ico" aria-hidden="true" />
+          禁用
+        </button>
+        <div class="account-row-menu__sep" role="separator" />
+        <button
+          type="button"
+          class="account-row-menu__item account-row-menu__item--danger"
+          role="menuitem"
+          @click="contextDelete"
+        >
+          <Icon icon="lucide:trash-2" class="account-row-menu__ico" aria-hidden="true" />
+          删除
+        </button>
+      </div>
+    </Teleport>
 
     <van-popup
       v-model:show="showAddModal"
@@ -1185,7 +1381,7 @@ function onConfirmAdd() {
 .account-hero {
   flex-shrink: 0;
   margin: 0;
-  padding: 4px 0 22px;
+  padding: 4px 0 11px;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -1198,7 +1394,7 @@ function onConfirmAdd() {
   /** 单列最小宽度（略小以减少过早换行）；与 leader 内 min-width 联动 */
   --filter-col-min: 84px;
   --filter-col-gap: 12px;
-  --filter-expand-w: 46px;
+  --filter-expand-w: 40px;
   --filter-leader-gap: 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1259,8 +1455,8 @@ function onConfirmAdd() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   margin: 0;
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.06);
@@ -1318,7 +1514,7 @@ function onConfirmAdd() {
 .account-filter__actions .btn-primary,
 .account-filter__actions .btn-outline {
   box-sizing: border-box;
-  height: 46px;
+  height: 40px;
   min-width: 56px;
   padding: 0 14px;
   font-size: 14px;
@@ -1391,29 +1587,34 @@ function onConfirmAdd() {
 }
 
 .filter-field__line {
-  min-height: 46px;
+  min-height: 40px;
+  height: 40px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  border-radius: 12px;
+  padding: 0 12px;
+  border-radius: 8px;
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.022),
-    0 8px 22px rgba(15, 23, 42, 0.028);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  /** 环境阴影：在 0.031 基础上再浅 20% → 0.025 */
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.025);
   transition:
     border-color 0.2s ease,
     background 0.2s ease,
     box-shadow 0.2s ease;
 }
 
+.filter-field__line:hover:not(:focus-within) {
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.065);
+}
+
 .filter-field__line:focus-within {
   background: #fff;
-  border-color: rgba(241, 12, 12, 0.38);
+  border-color: color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
+  /** 环境阴影 + 外侧 1px 环（与 1px 边框合成 2px 描边），不改变内容盒 */
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 10px 28px rgba(15, 23, 42, 0.038),
-    0 0 0 2px rgba(241, 12, 12, 0.14);
+    0 2px 10px rgba(15, 23, 42, 0.025),
+    0 0 0 1px color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
 }
 
 .filter-field__input {
@@ -1423,7 +1624,7 @@ function onConfirmAdd() {
   width: 100%;
   border: none;
   margin: 0;
-  padding: 10px 0;
+  padding: 8px 0;
   font: inherit;
   font-size: 15px;
   color: var(--color-text);
@@ -1449,7 +1650,7 @@ function onConfirmAdd() {
   width: 100%;
   border: none;
   margin: 0;
-  padding: 10px 24px 10px 0;
+  padding: 8px 24px 8px 0;
   font: inherit;
   font-size: 15px;
   color: var(--color-text);
@@ -1471,7 +1672,7 @@ function onConfirmAdd() {
   min-width: 0;
   width: 100%;
   margin: 0;
-  padding: 10px 0;
+  padding: 8px 0;
   border: none;
   font: inherit;
   font-size: 15px;
@@ -1506,23 +1707,20 @@ function onConfirmAdd() {
 }
 
 .filter-field--filter-picker.filter-field--filter-picker-open {
-  border-color: rgba(241, 12, 12, 0.38);
+  border-color: color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 10px 28px rgba(15, 23, 42, 0.038),
-    0 0 0 2px rgba(241, 12, 12, 0.14);
+    0 2px 10px rgba(15, 23, 42, 0.025),
+    0 0 0 1px color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
+}
+
+.filter-field__line.filter-field--filter-picker-open:hover {
+  box-shadow:
+    0 2px 14px rgba(15, 23, 42, 0.065),
+    0 0 0 1px color-mix(in srgb, rgba(241, 12, 12, 0.35) 32%, white);
 }
 
 .filter-field--filter-picker-open .filter-field__select-trigger-chevron {
   transform: rotate(180deg);
-}
-
-.filter-field__line--select:focus-within {
-  border-color: rgba(241, 12, 12, 0.38);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 10px 28px rgba(15, 23, 42, 0.038),
-    0 0 0 2px rgba(241, 12, 12, 0.14);
 }
 
 .btn-primary {
@@ -1575,7 +1773,7 @@ function onConfirmAdd() {
 }
 
 .btn-primary--compact {
-  height: 42px;
+  height: 40px;
   padding: 0 18px;
   font-size: 14px;
 }
@@ -1614,69 +1812,132 @@ function onConfirmAdd() {
 }
 
 .account-panel {
+  /** 与 teach-panel：标题↔说明 pill、工具栏↔表格 同一垂直间距 */
+  --account-panel-stack-gap: 10px;
+  /** 抵消 .admin-main 左右内边距，面板背景通栏；内容边距与主区 gutter 对齐 */
+  --account-panel-inline: max(var(--admin-inline-gutter, 32px), env(safe-area-inset-left));
+  --account-panel-inline-end: max(var(--admin-inline-gutter, 32px), env(safe-area-inset-right));
+
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   margin-top: 0;
-  background: transparent;
-  border-radius: 0;
-  padding: 0;
+  margin-left: calc(-1 * var(--account-panel-inline));
+  margin-right: calc(-1 * var(--account-panel-inline-end));
+  padding: 14px var(--account-panel-inline-end) 0 var(--account-panel-inline);
+  background: var(--color-surface);
   border: none;
+  border-radius: 0;
   box-shadow: none;
   box-sizing: border-box;
   overflow: visible;
 }
 
-.account-panel__head {
-  flex-shrink: 0;
+.account-panel__toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 16px 24px;
-  margin: 0;
-  padding: 20px 24px 18px;
-  border-bottom: 1px solid var(--hairline-faint);
+  gap: 16px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  padding-bottom: 0;
+  margin-bottom: var(--account-panel-stack-gap);
 }
 
-.account-panel__titles {
+.account-panel__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--account-panel-stack-gap);
+  flex: 1 1 0%;
   min-width: 0;
+}
+
+.account-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account-panel__title-row .account-panel__title {
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+.account-panel__title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-panel__title-em {
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.account-panel__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.account-panel__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px 9px 10px;
+  border-radius: 999px;
+  background: #f3f3f3;
+  box-sizing: border-box;
+}
+
+.account-panel__pill-ico {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #a6a299;
+}
+
+.account-panel__pill-ico :deep(svg) {
+  stroke-width: 1.75;
+}
+
+.account-panel__pill-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #7d7a75;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .account-panel__add {
   flex-shrink: 0;
+  margin-left: auto;
 }
 
-.account-panel__table-box {
-  flex: 0 0 auto;
+.account-table-wrap {
+  position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--hairline-faint);
-  border-radius: 12px;
-  background: #fff;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.account-panel__table-box .table-wrap {
-  padding: 0 24px;
-}
-
-.account-panel__title {
-  margin: 0 0 6px;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-}
-
-.account-panel__note {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: #64748b;
-  line-height: 1.5;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  padding-bottom: calc(20px + max(24px, env(safe-area-inset-bottom)));
+  overflow: visible;
+  border-radius: 0;
+  border: none;
+  background: transparent;
 }
 
 .data-table__accent {
@@ -1709,66 +1970,69 @@ function onConfirmAdd() {
  * 普通列：1% + max-width 压低占位，剩余宽度让给部门 / 企业 ID / 状态 / 操作。
  * 部门、关联企业 ID：不设固定列宽，短内容时列随文字收窄；max-width 仍大于普通列，长文案可占更多空间。
  */
-.data-table thead th:nth-child(1),
 .data-table thead th:nth-child(2),
 .data-table thead th:nth-child(3),
 .data-table thead th:nth-child(4),
-.data-table thead th:nth-child(7),
+.data-table thead th:nth-child(5),
 .data-table thead th:nth-child(8),
-.data-table tbody td:nth-child(1),
+.data-table thead th:nth-child(9),
 .data-table tbody td:nth-child(2),
 .data-table tbody td:nth-child(3),
 .data-table tbody td:nth-child(4),
-.data-table tbody td:nth-child(7),
-.data-table tbody td:nth-child(8) {
+.data-table tbody td:nth-child(5),
+.data-table tbody td:nth-child(8),
+.data-table tbody td:nth-child(9) {
   width: 1%;
   max-width: 11%;
 }
 
-.data-table thead th:nth-child(5),
 .data-table thead th:nth-child(6),
-.data-table tbody td:nth-child(5),
-.data-table tbody td:nth-child(6) {
+.data-table thead th:nth-child(7),
+.data-table tbody td:nth-child(6),
+.data-table tbody td:nth-child(7) {
   width: max-content;
   max-width: min(32%, 380px);
 }
 
-.data-table thead th:nth-child(9),
-.data-table tbody td:nth-child(9) {
+.data-table thead th:nth-child(10),
+.data-table tbody td:nth-child(10) {
   width: auto;
   white-space: nowrap;
 }
 
-.data-table thead th:nth-child(-n + 9),
-.data-table tbody td:nth-child(-n + 9) {
+.data-table thead th:nth-child(-n + 10),
+.data-table tbody td:nth-child(-n + 10) {
   min-width: 0;
 }
 
 .data-table th {
   text-align: left;
-  padding: 12px 12px 14px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 6px 20px;
+  font-size: 13px;
+  font-weight: 500;
   color: #64748b;
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
   background: transparent;
-  border-bottom: 1px solid var(--hairline-faint);
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   white-space: nowrap;
-}
-
-.data-table th:first-child {
-  padding-left: 0;
-}
-
-.data-table th:last-child {
-  padding-right: 0;
+  vertical-align: middle;
 }
 
 .data-table td {
-  padding: 14px 12px 16px;
-  border-bottom: 1px solid var(--hairline-faint);
+  padding: 6px 20px;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   color: var(--color-text);
+  line-height: 1.35;
   vertical-align: middle;
+}
+
+/** 员工号列：左内边距再减半，与选中列更贴近 */
+.data-table thead th:nth-child(2),
+.data-table tbody td:nth-child(2) {
+  padding-left: 5px;
 }
 
 .data-table tbody tr:last-child td {
@@ -1783,27 +2047,27 @@ function onConfirmAdd() {
   background: rgba(15, 23, 42, 0.02);
 }
 
-.data-table td:first-child {
-  padding-left: 0;
+.data-table tbody tr.data-table__tr--selected {
+  background: rgba(232, 242, 255, 0.92);
 }
 
-.data-table td:last-child {
-  padding-right: 0;
+.data-table tbody tr.data-table__tr--selected:hover {
+  background: rgba(220, 234, 255, 0.98);
 }
 
-/* 部门与关联企业 ID 之间：原两侧各 12px，改为各 8px，总间距缩短 1/3 */
-.data-table thead th:nth-child(5),
-.data-table tbody td:nth-child(5) {
-  padding-right: 8px;
-}
-
+/* 部门与关联企业 ID 之间：收窄两列相邻内边距 */
 .data-table thead th:nth-child(6),
 .data-table tbody td:nth-child(6) {
-  padding-left: 8px;
+  padding: 6px 8px 6px 20px;
 }
 
-/* 前 8 列单行省略；第 9 列为状态徽章，不参与截断 */
-.data-table tbody td:nth-child(-n + 8) {
+.data-table thead th:nth-child(7),
+.data-table tbody td:nth-child(7) {
+  padding: 6px 20px 6px 8px;
+}
+
+/* 员工号～角色共 8 列单行省略；状态列不参与截断 */
+.data-table tbody td:nth-child(n + 2):nth-child(-n + 9) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1822,8 +2086,7 @@ function onConfirmAdd() {
   width: 1%;
   max-width: max-content;
   min-width: min-content;
-  padding-right: 0;
-  padding-left: 12px;
+  padding: 6px 12px 6px 28px;
   box-sizing: border-box;
   white-space: nowrap;
   vertical-align: middle;
@@ -1831,6 +2094,180 @@ function onConfirmAdd() {
 
 .data-table .data-table__col-actions {
   text-align: left;
+}
+
+.data-table .data-table__col-select,
+.data-table .data-table__cell-select {
+  width: 32px;
+  min-width: 32px;
+  max-width: 36px;
+  padding: 6px 1px 6px 8px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.data-table__cb-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.data-table__cb-label--head {
+  opacity: 1;
+}
+
+.data-table tbody .data-table__cb-label {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.data-table tbody tr:hover .data-table__cb-label,
+.data-table tbody tr:focus-within .data-table__cb-label,
+.data-table tbody tr.data-table__tr--selected .data-table__cb-label {
+  opacity: 1;
+}
+
+.data-table__cb-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.data-table__cb-visual {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 4px;
+  background: #fff;
+  box-sizing: border-box;
+  pointer-events: none;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.data-table__cb-tick {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.data-table__cb-tick :deep(svg) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.data-table__cb-input:checked + .data-table__cb-visual .data-table__cb-tick {
+  opacity: 1;
+}
+
+.data-table__cb-input:indeterminate + .data-table__cb-visual .data-table__cb-tick {
+  display: none;
+}
+
+.data-table__cb-input:focus-visible + .data-table__cb-visual {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.data-table__cb-input:checked + .data-table__cb-visual {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.data-table__cb-input:indeterminate + .data-table__cb-visual {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.data-table__cb-input:indeterminate + .data-table__cb-visual::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: #fff;
+  border: none;
+  transform: none;
+}
+
+.account-row-menu {
+  position: fixed;
+  z-index: 10001;
+  min-width: 172px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
+  box-sizing: border-box;
+}
+
+.account-row-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.account-row-menu__item:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.account-row-menu__item--danger {
+  color: #dc2626;
+}
+
+.account-row-menu__item--danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.account-row-menu__sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.account-row-menu__ico {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.88;
 }
 
 .data-table__actions {
@@ -1993,7 +2430,7 @@ function onConfirmAdd() {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding: 14px 24px 16px;
+  padding: 14px var(--account-panel-inline-end) 0 var(--account-panel-inline);
   margin: 0;
   margin-top: auto;
 }
@@ -2022,6 +2459,31 @@ function onConfirmAdd() {
 .account-pagination :deep(.van-pagination__item--next) {
   flex: 0 0 auto;
   padding: 0 14px;
+}
+
+/** 页码格：固定正方形，避免 Vant 内层按钮宽高不一致 */
+.account-pagination :deep(.van-pagination__item--page) {
+  width: var(--van-pagination-item-width, 36px);
+  height: var(--van-pagination-item-width, 36px);
+  min-width: var(--van-pagination-item-width, 36px);
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+}
+
+.account-pagination :deep(.van-pagination__item--page button) {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .account-pagination :deep(.van-pagination__item--active) {

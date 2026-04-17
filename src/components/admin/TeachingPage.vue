@@ -840,11 +840,12 @@ function removeRegionRow(id: string) {
 }
 
 .teach-aside {
-  flex: 0 0 min(308px, 34vw);
+  /** 可略收缩，避免 960px 附近被迫纵向堆叠才能排下两栏 */
+  flex: 0 1 min(308px, 34vw);
   max-width: 360px;
   display: flex;
   flex-direction: column;
-  min-width: 260px;
+  min-width: min(260px, 42vw);
   min-height: 0;
   align-self: stretch;
   /** 高度随 teach-page__columns 拉伸（勿用 height:100%，在部分 flex 链路上百分比不成立） */
@@ -1003,6 +1004,7 @@ function removeRegionRow(id: string) {
 
 .teach-tree {
   flex: 1 1 0%;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1333,7 +1335,9 @@ function removeRegionRow(id: string) {
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  flex-wrap: wrap;
+  /** 不换行：收窄时优先压缩标题区，避免筛选条整行落到标题下方 */
+  flex-wrap: nowrap;
+  min-width: 0;
   padding-bottom: 0;
   margin-bottom: var(--teach-panel-stack-gap);
 }
@@ -1343,6 +1347,7 @@ function removeRegionRow(id: string) {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--teach-panel-stack-gap);
+  flex: 1 1 0%;
   min-width: 0;
 }
 
@@ -1391,6 +1396,10 @@ function removeRegionRow(id: string) {
   color: var(--color-text-strong);
   letter-spacing: -0.03em;
   line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .teach-panel__title-em {
@@ -1464,6 +1473,7 @@ function removeRegionRow(id: string) {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-shrink: 1;
 }
 
 .teach-filter__sr-only {
@@ -1938,11 +1948,33 @@ function removeRegionRow(id: string) {
   color: #bdbdbd;
 }
 
+/** 中等宽度：仅优化工具栏换行，保持学案树与主面板左右分栏 */
 @media (max-width: 960px) {
   .teach-page {
     min-height: 0;
   }
 
+  .teach-panel__toolbar {
+    align-items: flex-end;
+  }
+
+  .teach-filter--toolbar {
+    margin-left: auto;
+    width: auto;
+    max-width: 100%;
+    justify-content: flex-end;
+  }
+
+  .teach-filter__toolbar-row {
+    width: auto;
+    max-width: 100%;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+}
+
+/** 更窄屏再改为上下堆叠，避免「主区仍较宽却变成双滚动竖排」的错版 */
+@media (max-width: 720px) {
   .teach-page__columns {
     flex-direction: column;
     min-height: 0;
@@ -1953,6 +1985,7 @@ function removeRegionRow(id: string) {
     flex: 0 0 auto;
     max-width: none;
     width: 100%;
+    min-width: 0;
     height: auto;
     min-height: 280px;
     max-height: 42vh;
@@ -1969,7 +2002,9 @@ function removeRegionRow(id: string) {
     height: auto;
   }
 
+  /** 极窄屏再允许工具栏折行，避免横向挤出视口 */
   .teach-panel__toolbar {
+    flex-wrap: wrap;
     align-items: stretch;
   }
 
@@ -1981,7 +2016,6 @@ function removeRegionRow(id: string) {
 
   .teach-filter__toolbar-row {
     width: 100%;
-    justify-content: flex-end;
     flex-wrap: wrap;
     row-gap: 8px;
   }
