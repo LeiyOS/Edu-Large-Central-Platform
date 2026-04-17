@@ -203,6 +203,10 @@ function togglePasswordVisible() {
 
 /* 50% / 50% 分栏；左侧登录块 */
 .login-page__form-side {
+  /* 与 fixed 左上角 Logo（top 15px + height 40px）留出间距，避免标题与品牌条重叠 */
+  --login-logo-zone: calc(
+    15px + 40px + 1.75rem + env(safe-area-inset-top, 0px)
+  );
   --form-side-pad-y: max(
     clamp(1.5rem, 3vw, 2.5rem),
     env(safe-area-inset-top, 0px),
@@ -219,7 +223,9 @@ function togglePasswordVisible() {
   min-height: 100vh;
   min-height: 100dvh;
   min-height: 100svh;
-  padding: var(--form-side-pad-y) clamp(1.25rem, 4vw, 2.5rem);
+  padding: max(var(--form-side-pad-y), var(--login-logo-zone))
+    clamp(1.25rem, 4vw, 2.5rem)
+    var(--form-side-pad-y);
   overflow-y: auto;
   background: #ffffff;
   box-sizing: border-box;
@@ -681,7 +687,8 @@ function togglePasswordVisible() {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: calc(var(--form-side-pad-y) + 52px) 1.25rem var(--form-side-pad-y);
+    padding: max(var(--form-side-pad-y), var(--login-logo-zone)) 1.25rem
+      var(--form-side-pad-y);
     overflow-y: auto;
     z-index: 1;
   }

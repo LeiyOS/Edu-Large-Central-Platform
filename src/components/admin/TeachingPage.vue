@@ -642,7 +642,12 @@ function removeRegionRow(id: string) {
           <div class="teach-empty__art" aria-hidden="true">
             <img :src="teachEmptyArtUrl" alt="" class="teach-empty__art-img" width="237" height="237" decoding="async" />
           </div>
-          <p class="teach-empty__text">{{ regionTableEmptyText }}</p>
+          <p
+            class="teach-empty__text"
+            :class="{ 'teach-empty__text--filter-miss': regionRows.length > 0 }"
+          >
+            {{ regionTableEmptyText }}
+          </p>
         </div>
       </div>
     </section>
@@ -1881,6 +1886,13 @@ function removeRegionRow(id: string) {
   font-size: 18px;
   font-weight: 700;
   color: #222222;
+}
+
+/** 筛选无结果：较默认放大两档、字重最粗、浅灰字 */
+.teach-empty__text--filter-miss {
+  font-size: 22px;
+  font-weight: 900;
+  color: #bdbdbd;
 }
 
 @media (max-width: 960px) {
