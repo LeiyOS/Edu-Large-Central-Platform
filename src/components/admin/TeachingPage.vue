@@ -1914,7 +1914,6 @@ function removeRegionRow(id: string) {
   width: 237px;
   height: 237px;
   flex-shrink: 0;
-  margin-left: -10px;
 }
 
 .teach-empty__art-img {
@@ -1922,6 +1921,7 @@ function removeRegionRow(id: string) {
   height: 237px;
   object-fit: contain;
   display: block;
+  transform: translateX(-10px);
 }
 
 .teach-empty__text {
