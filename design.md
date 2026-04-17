@@ -49,8 +49,8 @@
 | ---------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | `--admin-canvas` | `#fefefe`                                                                                                   | 顶栏 + 主内容区衬底（`AdminLayout`）      |
 | 顶栏底边             | `rgba(15, 23, 42, 0.05)`                                                                                    | 与主区分隔                           |
-| 侧栏渐变衬底           | 紫 / 蓝 / 粉轻量径向 + 纵向灰渐变（见实现）                                                                                  | 侧栏品牌氛围，保持可读                     |
-| 侧栏右缘             | `#e8e8e8` + 轻阴影                                                                                             | 与主区分界                           |
+| 侧栏衬底             | Paper「demo」画板：`#EDEDF0` 实底 + 分组 `1px solid rgba(0,0,0,0.031)` 顶线；导航行 `min-height: 40px`、`border-radius: 6px`、行间距 `4px` | 与 Paper 导出一致；图标列 **24px**、行内字 **13px** |
+| 侧栏右缘             | `1px solid rgba(0, 0, 0, 0.06)`                                                                               | 与主区的弱分界                           |
 | 表格分割线（列表页）       | `rgba(15, 23, 42, 0.055)`（`AccountListPage` 内 `--hairline`）；更浅分隔 `--hairline-faint: rgba(15, 23, 42, 0.04)` | 单元格 / 表头区域分隔                    |
 | 列表页主色别名          | `--primary: #F10C0C`（与 `--color-primary` 对齐，`AccountListPage` 内 `v-bind`）                                   | 按钮、幽灵按钮底等                       |
 | 状态徽标             | 绿 / 红 / 橙透明底                                                                                                | 正常、已禁用、已离职（见 `AccountListPage`） |
@@ -78,8 +78,8 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 | 登录表单标签       | `field-label`                  | 12px                                    | 500                  | `#64748b`                  |
 | 登录输入         | —                              | 15px                                    | 400                  | `#0f172a`                  |
 | 顶栏业务 Tab     | `admin-header__nav-item`       | 14px                                    | 500 / 当前 600         | `var(--color-text-strong)` |
-| 侧栏分组标题       | `admin-sidebar__group-title`   | 11px                                    | 700                  | `#94a3b8`，字间距加宽            |
-| 侧栏菜单项        | `admin-sidebar__item`          | 14px                                    | 500 / 当前 600         | 次要色 → 当前深字                 |
+| 侧栏分组标题       | `admin-sidebar__group-title`   | 12px / 行高 18px（≈150%）                    | 400                  | `#00000073`，`system-ui, sans-serif`（Paper demo） |
+| 侧栏菜单项        | `admin-sidebar__item`          | 13px，文案行高 **38px**，行高 **40px**           | 400；选中 **`var(--color-primary)`** | 默认字/图标色 `#4E5969`；选中图标随 `currentColor` |
 | 侧栏账号名        | `admin-sidebar__account-name`  | 14px                                    | 700                  | `#0f172a`                  |
 | 列表标题         | `account-panel__title`         | 18px（`1.125rem`）                        | 700                  | `#0f172a`                  |
 | 列表副说明        | `account-panel__note`          | 13px                                    | 500                  | `#64748b`                  |
@@ -122,7 +122,7 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 | 约定        | 值                                                                                                                                |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 整体        | `.admin-shell` 横向 flex：**侧栏 + 主区域**；全屏最小高度 `100vh` / `100dvh`；外壳背景 `#fff`                                                        |
-| 侧栏宽度      | 展开 `**244px`**，收起 `**72px`**（CSS 变量 `--sidebar-w` / `--sidebar-w-collapsed`）                                                     |
+| 侧栏宽度      | 展开 `**220px**`（Paper「demo」画板 1:1），收起 `**72px**`（`--sidebar-w` / `--sidebar-w-collapsed`）                                        |
 | 窄屏        | `max-width: 1024px` 时侧栏**强制等同收起**（仅图标）；宽屏可点击中部 **FAB** 切换展开 / 收起                                                                 |
 | 顶栏高度      | `**64px`**（`--header-h`），`sticky`                                                                                                |
 | 主区水平留白    | `**--admin-inline-gutter: 32px`**，顶栏与 `main.admin-main` **左右对称**，并与 `max(..., env(safe-area-inset-*))` 取较大值                      |
@@ -175,7 +175,7 @@ Inter, system-ui, -apple-system, "Segoe UI", Roboto,
 | 列表：表格横向留白       | `account-panel__table-box .table-wrap` 左右 **24px**          |
 | 列表：筛选区下留白       | `.account-hero` `padding: 4px 0 22px`                       |
 | 列表：表头标题区内边距     | `account-panel__head`：**20px 24px 18px**                    |
-| 侧栏内轨            | `admin-sidebar__inner` **22px 16px 20px**（收起时缩至 **8px** 水平） |
+| 侧栏内轨            | 顶区 Logo **`34px 20px 16px`**；分组 **`margin` 左右 20px**（≤720px **16px**）；底 **`收起侧栏` 区左右 20px**（收起 **8px**） |
 
 
 ---

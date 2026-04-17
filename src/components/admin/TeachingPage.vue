@@ -1,14 +1,40 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { Ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { showToast } from 'vant'
 import teachEmptyArtUrl from '../../assets/404-img.png'
 
 /** 与 design.md / 组织页一致 */
 const PRIMARY = '#F10C0C'
 
-/** 学案页左侧版本树（teach-aside）显隐，与 AdminLayout 全局侧栏无关 */
-const teachAsideExpanded = ref(true)
+/** 须窄于 AdminLayout 的 1024px 侧栏自动收起，学案树再收一档 */
+const TEACH_ASIDE_AUTO_COLLAPSE_MQ = '(max-width: 900px)'
+
+type AdminSidebarApi = {
+  toggle: () => void
+  isNarrow: Ref<boolean>
+  isCollapsed: Ref<boolean>
+}
+
+const adminSidebarApi = inject<AdminSidebarApi | null>('adminSidebarApi', null)
+
+/** 用户手动切换学案侧栏；拉宽后按此状态自动恢复展示 */
+const teachAsideUserExpanded = ref(true)
+/** 与 TEACH_ASIDE_AUTO_COLLAPSE_MQ 同步，供 computed 响应 */
+const isTeachAsideAutoCollapseViewport = ref(false)
+let teachAsideNarrowMql: MediaQueryList | null = null
+
+function syncTeachAsideViewportNarrowFlag() {
+  isTeachAsideAutoCollapseViewport.value = teachAsideNarrowMql?.matches ?? false
+}
+
+/** 学案树显隐：极窄且全局侧栏已收起时强制收起；否则跟随用户偏好（拉宽后自动恢复） */
+const teachAsideExpanded = computed(() => {
+  const mainCollapsed = adminSidebarApi?.isCollapsed?.value === true
+  if (isTeachAsideAutoCollapseViewport.value && mainCollapsed) return false
+  return teachAsideUserExpanded.value
+})
 
 const teachAsideToggleAria = computed(() =>
   teachAsideExpanded.value ? '收起学案侧栏' : '展开学案侧栏',
@@ -20,7 +46,7 @@ const teachAsideToggleIcon = computed(() =>
 )
 
 function toggleTeachAside() {
-  teachAsideExpanded.value = !teachAsideExpanded.value
+  teachAsideUserExpanded.value = !teachAsideUserExpanded.value
 }
 
 /** 须与 `.teach-tree__menu-pop` 的 min-width 一致，用于弹层定位 */
@@ -335,11 +361,15 @@ function onTreeMenuAction(action: string, node: TeachNode) {
 onMounted(() => {
   document.addEventListener('click', onTreeMenuDocClick)
   document.addEventListener('keydown', onTreeMenuKeydown)
+  teachAsideNarrowMql = window.matchMedia(TEACH_ASIDE_AUTO_COLLAPSE_MQ)
+  syncTeachAsideViewportNarrowFlag()
+  teachAsideNarrowMql.addEventListener('change', syncTeachAsideViewportNarrowFlag)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onTreeMenuDocClick)
   document.removeEventListener('keydown', onTreeMenuKeydown)
+  teachAsideNarrowMql?.removeEventListener('change', syncTeachAsideViewportNarrowFlag)
 })
 
 function onBack() {
@@ -1333,12 +1363,25 @@ function removeRegionRow(id: string) {
   height: calc(18px * 1.2);
 }
 
+/** 学案侧栏开关：Lucide 默认 2px 级描边偏粗，与 Admin 侧栏细线图标对齐 */
+.teach-panel__title-row .teach-page__ctx-ico :deep(svg) {
+  stroke-width: 1.15;
+}
+
+.teach-panel__title-row .teach-page__ctx-ico :deep(path),
+.teach-panel__title-row .teach-page__ctx-ico :deep(line),
+.teach-panel__title-row .teach-page__ctx-ico :deep(polyline),
+.teach-panel__title-row .teach-page__ctx-ico :deep(rect),
+.teach-panel__title-row .teach-page__ctx-ico :deep(circle) {
+  stroke-width: 1.15;
+}
+
 .teach-panel__title-row .teach-page__ctx-icon-btn {
-  color: #999999;
+  color: #888888;
 }
 
 .teach-panel__title-row .teach-page__ctx-icon-btn:hover:not(:disabled) {
-  color: #999999;
+  color: #7a7a7a;
 }
 
 .teach-panel__title {

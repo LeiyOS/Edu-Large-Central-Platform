@@ -136,19 +136,19 @@ const sidebarGroupsSource = [
 type TeachingSidebarLeaf = { label: string; icon: string }
 type TeachingSidebarEntry = TeachingSidebarLeaf | (TeachingSidebarLeaf & { children: TeachingSidebarLeaf[] })
 
-/** 教学 Tab：侧栏入口（主区由 App.vue 固定为 TeachingPage） */
+/** 教学 Tab：与 Paper「demo」画板 1:1；扫雷管理含二级菜单 */
 const teachingSidebarGroupsSource: { title: string; items: TeachingSidebarEntry[] }[] = [
   {
     title: '题库管理',
     items: [
-      { label: '题库搜题', icon: 'lucide:search' },
+      { label: '题库搜索', icon: 'lucide:search' },
       {
         label: '扫雷管理',
         icon: 'lucide:scan-search',
         children: [
-          { label: '随堂测', icon: 'lucide:clipboard-list' },
-          { label: '学案题库', icon: 'lucide:book-open' },
-          { label: '导学题库', icon: 'lucide:book-marked' },
+          { label: '规则配置', icon: 'lucide:clipboard-list' },
+          { label: '场次管理', icon: 'lucide:calendar-range' },
+          { label: '数据报表', icon: 'lucide:chart-column' },
         ],
       },
     ],
@@ -216,8 +216,8 @@ watch(
   () => props.activeTopNav,
   (nav) => {
     if (nav === '教学') {
-      activeSidebarLabel.value = '学案题库'
-      emit('sidebar-nav', '学案题库')
+      activeSidebarLabel.value = '题库搜索'
+      emit('sidebar-nav', '题库搜索')
     } else if (TEACHING_SIDEBAR_LABELS.has(activeSidebarLabel.value)) {
       activeSidebarLabel.value = '组织管理'
       emit('sidebar-nav', '组织管理')
@@ -265,14 +265,38 @@ function onAccountMenuLogout() {
 <template>
   <div class="admin-shell" :class="{ 'admin-shell--sidebar-collapsed': isSidebarCollapsed }">
     <aside id="admin-sidebar-nav" class="admin-sidebar" aria-label="侧栏导航">
+      <button
+        v-if="!isNarrowViewport"
+        type="button"
+        class="admin-sidebar__edge-toggle"
+        :class="{ 'admin-sidebar__edge-toggle--collapsed': isSidebarCollapsed }"
+        :aria-expanded="!isSidebarCollapsed"
+        :aria-label="isSidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+        aria-controls="admin-sidebar-nav"
+        :title="isSidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+        @click="toggleSidebarCollapse"
+      >
+        <svg
+          class="admin-sidebar__edge-toggle-tri"
+          width="7.56"
+          height="9.72"
+          viewBox="0 0 9 11"
+          aria-hidden="true"
+        >
+          <path
+            d="M6.343 2.342 A2 2 0 0 1 7.25 2.833 L7.25 8.167 A2 2 0 0 1 6.343 8.658 L2.593 6.213 A2 2 0 0 1 2.593 4.787 L6.343 2.342 Z"
+            fill="#4e5969"
+          />
+        </svg>
+      </button>
       <div class="admin-sidebar__inner">
         <div class="admin-sidebar__brand">
           <img
             :src="sidebarLogoSrc"
-            alt="想象力大中台"
+            alt="想象力智能中高考"
             class="admin-sidebar__logo"
-            width="218"
-            height="59"
+            width="184"
+            height="32"
             decoding="async"
           />
         </div>
@@ -344,32 +368,6 @@ function onAccountMenuLogout() {
               </template>
             </ul>
           </div>
-        </div>
-
-        <div class="admin-sidebar__footer">
-          <button
-            type="button"
-            class="admin-sidebar__collapse-btn"
-            :aria-expanded="isNarrowViewport ? undefined : !isSidebarCollapsed"
-            :aria-label="
-              isNarrowViewport
-                ? '当前为窄屏，侧栏固定为图标模式'
-                : isSidebarCollapsed
-                  ? '展开侧栏'
-                  : '收起侧栏'
-            "
-            aria-controls="admin-sidebar-nav"
-            :disabled="isNarrowViewport"
-            :title="isNarrowViewport ? '窄屏下侧栏固定为图标模式' : isSidebarCollapsed ? '展开侧栏' : '收起侧栏'"
-            @click="toggleSidebarCollapse"
-          >
-            <Icon
-              :icon="isSidebarCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-left'"
-              class="admin-sidebar__collapse-btn-ico"
-              aria-hidden="true"
-            />
-            <span v-if="!isSidebarCollapsed" class="admin-sidebar__collapse-btn-label">收起侧栏</span>
-          </button>
         </div>
       </div>
     </aside>
@@ -483,7 +481,8 @@ function onAccountMenuLogout() {
 <style scoped>
 .admin-shell {
   --header-h: 64px;
-  --sidebar-w-expanded: 244px;
+  /* Paper「demo」画板宽度 220px */
+  --sidebar-w-expanded: 220px;
   --sidebar-w-collapsed: 72px;
   --sidebar-w: var(--sidebar-w-expanded);
   /** 主区（顶栏 + main）左右对称留白，中间内容随宽度拉伸 */
@@ -828,6 +827,7 @@ function onAccountMenuLogout() {
 }
 
 .admin-sidebar {
+  position: relative;
   z-index: 40;
   flex: 0 0 var(--sidebar-w);
   width: var(--sidebar-w);
@@ -841,95 +841,89 @@ function onAccountMenuLogout() {
     width 0.28s ease;
 }
 
-/* 与历史侧栏底部「退出登录」按钮同款底色与字号；通栏宽度，图标与文案在按钮内居中 */
-.admin-sidebar__footer {
-  flex-shrink: 0;
-  margin-top: auto;
-  padding-top: 16px;
-}
-
-.admin-sidebar__collapse-btn {
-  margin: 0;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.05);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
+/**
+ * 侧栏内侧折叠把手：无描边、无阴影；底色固定 #EAEBEE（无 hover 变化）；16×46；全圆角胶囊；三角 SVG
+ */
+.admin-sidebar__edge-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 45;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
+  width: 16px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: #eaebee;
+  box-shadow: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.admin-sidebar__collapse-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
+.admin-sidebar__edge-toggle:hover,
+.admin-sidebar__edge-toggle:active {
+  background: #eaebee;
 }
 
-.admin-sidebar__collapse-btn:focus-visible {
+.admin-sidebar__edge-toggle:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.admin-sidebar__collapse-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.admin-sidebar__collapse-btn-ico {
-  width: calc(18px * 1.2 * 0.95);
-  height: calc(18px * 1.2 * 0.95);
+.admin-sidebar__edge-toggle-tri {
+  display: block;
   flex-shrink: 0;
-  opacity: 0.9;
 }
 
-.admin-sidebar__collapse-btn-label {
-  white-space: nowrap;
+/** 收起态：三角指向右（展开） */
+.admin-sidebar__edge-toggle--collapsed .admin-sidebar__edge-toggle-tri {
+  transform: scaleX(-1);
 }
 
-.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn {
-  padding: 8px 12px;
-  min-height: 36px;
-  box-sizing: border-box;
-}
-
+/* 顶浅蓝灰 → 底白（云文件侧栏参考） */
 .admin-sidebar__inner {
   height: 100%;
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 22px 16px 20px;
+  padding: 0 0 16px;
   transition: padding 0.28s ease;
-  background:
-    radial-gradient(120% 90% at 0% -8%, rgba(167, 139, 250, 0.2) 0%, transparent 52%),
-    radial-gradient(100% 70% at 15% 0%, rgba(96, 165, 250, 0.16) 0%, transparent 48%),
-    radial-gradient(80% 50% at 100% 20%, rgba(244, 114, 182, 0.08) 0%, transparent 45%),
-    linear-gradient(180deg, #f8f9fc 0%, #f1f2f8 48%, #eceef5 100%);
-  border-right: 1px solid #e8e8e8;
+  background: linear-gradient(180deg, #e8eef5 0%, #f0f3f8 38%, #fafbfc 72%, #ffffff 100%);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   box-sizing: border-box;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .admin-sidebar__brand {
   flex-shrink: 0;
-  padding: 4px 4px 20px;
-  margin-bottom: 4px;
+  padding: 34px 20px 16px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .admin-sidebar__logo {
-  height: 40px;
+  height: calc(31px * 1.02);
   width: auto;
-  max-width: 100%;
+  max-width: calc(180px * 1.02);
   object-fit: contain;
+  object-position: left center;
   display: block;
 }
 
@@ -941,32 +935,31 @@ function onAccountMenuLogout() {
   -webkit-overflow-scrolling: touch;
 }
 
-.admin-sidebar__group + .admin-sidebar__group {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: none;
-  position: relative;
+.admin-sidebar__group {
+  margin: 0 20px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(0, 0, 0, 0.031);
+  box-sizing: border-box;
 }
 
-/* 与下方「平台配置」等分组标题同宽（.admin-sidebar__group-title 左右 10px margin） */
-.admin-sidebar__group + .admin-sidebar__group::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: -10px;
-  width: auto;
-  height: 1px;
-  background: rgba(15, 23, 42, 0.07);
-  pointer-events: none;
+.admin-sidebar__group:first-child {
+  border-top: none;
+  padding-top: 17px;
+}
+
+/** 每组底部与下一组顶部分割线之间的额外间距 */
+.admin-sidebar__group:not(:last-child) {
+  margin-bottom: 8px;
 }
 
 .admin-sidebar__group-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #94a3b8;
-  margin: 0 10px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: normal;
+  color: #86909c;
+  margin: 0 0 4px 14px;
   transition:
     opacity 0.2s ease,
     height 0.2s ease,
@@ -979,6 +972,9 @@ function onAccountMenuLogout() {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .admin-sidebar__item {
@@ -986,39 +982,28 @@ function onAccountMenuLogout() {
   z-index: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  margin: 0 0 -2px;
-  padding: 9px 14px;
+  margin: 0;
+  min-height: 40px;
+  padding: 0 12px;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   background: transparent;
   font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: normal;
+  color: #4e5969;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
+  box-shadow: none;
+  filter: none;
   transition:
-    color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-/** hover / 选中背景：比按钮块高度缩短 4px（上下各内收 2px），不改变 padding，行距与相邻项间距不变 */
-.admin-sidebar__item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 2px;
-  bottom: 2px;
-  border-radius: 10px;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition:
-    opacity 0.2s ease,
-    background 0.2s ease;
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .admin-sidebar__item > * {
@@ -1026,13 +1011,9 @@ function onAccountMenuLogout() {
   z-index: 1;
 }
 
-.admin-sidebar__item:hover::before {
-  opacity: 1;
-  background: rgba(15, 23, 42, 0.05);
-}
-
 .admin-sidebar__item:hover {
-  color: var(--color-text-strong);
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.78);
 }
 
 .admin-sidebar__item:focus-visible {
@@ -1040,30 +1021,77 @@ function onAccountMenuLogout() {
   outline-offset: 2px;
 }
 
+/** 选中项：白底；图标与文案使用设计主题色（--color-primary）；无投影 */
 .admin-sidebar__item--active {
-  color: #0f172a;
-  font-weight: 600;
+  background: #ffffff;
+  color: var(--color-primary);
+  font-weight: 400;
   box-shadow: none;
+  filter: none;
 }
 
-.admin-sidebar__item--active::before {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.72);
+.admin-sidebar__item--active:hover {
+  background: #ffffff;
+  color: var(--color-primary);
+  box-shadow: none;
+  filter: none;
 }
 
-.admin-sidebar__item--active .admin-sidebar__item-ico {
-  color: #0f172a;
+.admin-sidebar__item:active,
+.admin-sidebar__item--active:active {
+  box-shadow: none;
+  filter: none;
 }
 
+/**
+ * 细线描边图标：约 14.4×14.4（16×16 的 90%），stroke 约 1px 量级（Lucide 在 24 视图下用 1.15）
+ */
 .admin-sidebar__item-ico {
   flex-shrink: 0;
-  width: calc(20px * 1.2 * 0.95);
-  height: calc(20px * 1.2 * 0.95);
-  color: #64748b;
+  width: 21.6px;
+  height: 21.6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4e5969;
+}
+
+.admin-sidebar__item-ico :deep(svg) {
+  width: 14.4px !important;
+  height: 14.4px !important;
+  min-width: 14.4px;
+  min-height: 14.4px;
+  display: block;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-sidebar__item-ico :deep(path),
+.admin-sidebar__item-ico :deep(circle),
+.admin-sidebar__item-ico :deep(line),
+.admin-sidebar__item-ico :deep(polyline),
+.admin-sidebar__item-ico :deep(rect) {
+  stroke: currentColor;
+  stroke-width: 1.15;
+}
+
+.admin-sidebar__item-ico :deep(path[fill='currentColor']),
+.admin-sidebar__item-ico :deep(circle[fill='currentColor']) {
+  fill: currentColor;
+  stroke: none;
 }
 
 .admin-sidebar__item:hover .admin-sidebar__item-ico {
-  color: #0f172a;
+  color: rgba(0, 0, 0, 0.78);
+}
+
+.admin-sidebar__item--active:hover .admin-sidebar__item-ico,
+.admin-sidebar__item--active .admin-sidebar__item-ico {
+  color: var(--color-primary);
 }
 
 .admin-sidebar__item-text {
@@ -1072,6 +1100,9 @@ function onAccountMenuLogout() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 38px;
 }
 
 .admin-sidebar__nest {
@@ -1086,30 +1117,78 @@ function onAccountMenuLogout() {
 
 .admin-sidebar__item-parent-chev {
   margin-left: auto;
-  width: calc(16px * 1.2 * 0.95);
-  height: calc(16px * 1.2 * 0.95);
   flex-shrink: 0;
-  color: #94a3b8;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /** 与 teach-page__ctx-ico 同尺寸；略深于 60% 混色；整体靠侧栏右缘 6px */
+  color: color-mix(in srgb, #4e5969 68%, white);
+  transform: translateX(6px);
   transition: transform 0.2s ease;
 }
 
-/** 默认朝下；展开子菜单时旋转为朝上 */
-.admin-sidebar__item-parent-chev--expanded {
-  transform: rotate(180deg);
+.admin-sidebar__item-parent-chev :deep(svg) {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px;
+  min-height: 18px;
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.admin-sidebar__item--active-parent::before {
-  opacity: 1;
-  background: rgba(15, 23, 42, 0.04);
+.admin-sidebar__item-parent-chev :deep(path),
+.admin-sidebar__item-parent-chev :deep(line),
+.admin-sidebar__item-parent-chev :deep(polyline),
+.admin-sidebar__item-parent-chev :deep(rect),
+.admin-sidebar__item-parent-chev :deep(circle) {
+  stroke: currentColor;
+  stroke-width: 1.15;
+}
+
+.admin-sidebar__item:hover .admin-sidebar__item-parent-chev {
+  color: color-mix(in srgb, rgba(0, 0, 0, 0.78) 68%, white);
+}
+
+.admin-sidebar__item--active-parent .admin-sidebar__item-parent-chev,
+.admin-sidebar__item--active-parent:hover .admin-sidebar__item-parent-chev {
+  color: color-mix(in srgb, rgba(0, 0, 0, 0.78) 68%, white);
+}
+
+.admin-sidebar__item--active .admin-sidebar__item-parent-chev,
+.admin-sidebar__item--active:hover .admin-sidebar__item-parent-chev {
+  color: color-mix(in srgb, var(--color-primary) 68%, white);
+}
+
+/** 默认朝下；展开子菜单时旋转为朝上（保留右移 6px） */
+.admin-sidebar__item-parent-chev--expanded {
+  transform: translateX(6px) rotate(180deg);
+}
+
+.admin-sidebar__item--active-parent {
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.78);
+}
+
+.admin-sidebar__item--active-parent:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .admin-sidebar__sublist {
   list-style: none;
   margin: 0 0 2px;
-  padding: 4px 0 0;
+  padding: 2px 0 0;
   /** 不在此缩进容器，子项按钮与一级同宽；缩进由 .admin-sidebar__item--sub 的 padding-left 承担 */
   padding-left: 0;
   margin-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .admin-sidebar__sublist-item {
@@ -1120,16 +1199,16 @@ function onAccountMenuLogout() {
 
 .admin-sidebar__item--sub {
   font-size: 13px;
-  font-weight: 500;
-  color: #475569;
-  /** 无图标：左内边距 = 一级与 .admin-sidebar__item-ico + gap 同宽，文案与一级菜单文案左对齐 */
-  padding-left: calc(14px + (20px * 1.2 * 0.95) + 12px);
+  font-weight: 400;
+  color: #4e5969;
+  /** 与一级 12px padding + 21.6px 图标槽 + 10px gap 对齐 */
+  padding-left: 43.6px;
   gap: 0;
 }
 
-/** 二级选中：文案与 .admin-sidebar__item--active .admin-sidebar__item-ico 同色（避免 --sub 的 color 覆盖选中态） */
 .admin-sidebar__item--sub.admin-sidebar__item--active {
-  color: #0f172a;
+  color: var(--color-primary);
+  font-weight: 400;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__sublist {
@@ -1174,52 +1253,41 @@ function onAccountMenuLogout() {
 
 /* 收起：仅保留图标与必要控件 */
 .admin-shell--sidebar-collapsed .admin-sidebar {
-  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 /* 收起时仅收宽度，纵向与展开态同一套留白，避免整体高度/Y 向错位 */
 .admin-shell--sidebar-collapsed .admin-sidebar__inner {
-  padding: 22px 8px 20px;
+  padding: 0 0 16px;
   border-right: none;
-  /* 背景层按展开宽度绘制，窄栏水平居中裁剪，显示中间段、避免径向渐变被横向挤压 */
   overflow-x: hidden;
-  background-size:
-    var(--sidebar-w-expanded) 100%,
-    var(--sidebar-w-expanded) 100%,
-    var(--sidebar-w-expanded) 100%,
-    100% 100%;
-  background-position:
-    center top,
-    center top,
-    center top,
-    center top;
-  background-repeat: no-repeat;
+  background: linear-gradient(180deg, #e8eef5 0%, #f0f3f8 38%, #fafbfc 72%, #ffffff 100%);
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__brand {
-  padding: 4px 4px 20px;
-  margin-bottom: 4px;
+  padding: 22px 8px 12px;
+  margin: 0;
   display: flex;
   justify-content: center;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__logo {
-  height: 28px;
-  max-width: 44px;
+  height: calc(28px * 1.02);
+  max-width: calc(44px * 1.02);
   margin: 0 auto;
 }
 
-.admin-shell--sidebar-collapsed .admin-sidebar__group + .admin-sidebar__group {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: none;
+.admin-shell--sidebar-collapsed .admin-sidebar__group {
+  margin: 0 8px;
+  padding-top: 12px;
 }
 
-.admin-shell--sidebar-collapsed .admin-sidebar__group + .admin-sidebar__group::before {
-  /* 与标题区块 margin 规则一致，收起时仍对齐同一套版心 */
-  left: 10px;
-  right: 10px;
-  background: rgba(15, 23, 42, 0.08);
+.admin-shell--sidebar-collapsed .admin-sidebar__group:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.admin-shell--sidebar-collapsed .admin-sidebar__group:first-child {
+  padding-top: 12px;
 }
 
 /* 保留首个分组标题占位；第二组见下条 */
@@ -1259,32 +1327,13 @@ function onAccountMenuLogout() {
 
 .admin-shell--sidebar-collapsed .admin-sidebar__item {
   justify-content: center;
-  padding: 9px 10px;
+  padding: 0 10px;
+  min-height: 40px;
   gap: 0;
 }
 
 .admin-shell--sidebar-collapsed .admin-sidebar__item-text {
   display: none;
-}
-
-/** 收起：默认图标 80% 不透明；hover / 选中 / 父级选中 / 键盘聚焦 保持原样（不透明） */
-.admin-shell--sidebar-collapsed .admin-sidebar__item-ico {
-  opacity: 0.8;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__item:hover:not(:disabled) .admin-sidebar__item-ico,
-.admin-shell--sidebar-collapsed .admin-sidebar__item:focus-visible .admin-sidebar__item-ico,
-.admin-shell--sidebar-collapsed .admin-sidebar__item--active .admin-sidebar__item-ico,
-.admin-shell--sidebar-collapsed .admin-sidebar__item--active-parent .admin-sidebar__item-ico {
-  opacity: 1;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn:not(:disabled) .admin-sidebar__collapse-btn-ico {
-  opacity: 0.8;
-}
-
-.admin-shell--sidebar-collapsed .admin-sidebar__collapse-btn:hover:not(:disabled) .admin-sidebar__collapse-btn-ico {
-  opacity: 1;
 }
 
 @media (max-width: 720px) {
@@ -1293,7 +1342,12 @@ function onAccountMenuLogout() {
   }
 
   .admin-sidebar__inner {
-    padding: 16px 12px 20px;
+    padding: 0 0 16px;
+  }
+
+  .admin-sidebar__group {
+    margin-left: 16px;
+    margin-right: 16px;
   }
 
   .admin-header {
