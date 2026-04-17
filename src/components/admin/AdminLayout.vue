@@ -1044,12 +1044,12 @@ function onAccountMenuLogout() {
 }
 
 /**
- * 细线描边图标：约 14.4×14.4（16×16 的 90%），stroke 约 1px 量级（Lucide 在 24 视图下用 1.15）
+ * 细线描边图标：在 14.4px 基础上再 ×0.95；stroke 约 1px 量级（Lucide 在 24 视图下用 1.15）
  */
 .admin-sidebar__item-ico {
   flex-shrink: 0;
-  width: 21.6px;
-  height: 21.6px;
+  width: 20.52px;
+  height: 20.52px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1057,10 +1057,10 @@ function onAccountMenuLogout() {
 }
 
 .admin-sidebar__item-ico :deep(svg) {
-  width: 14.4px !important;
-  height: 14.4px !important;
-  min-width: 14.4px;
-  min-height: 14.4px;
+  width: 13.68px !important;
+  height: 13.68px !important;
+  min-width: 13.68px;
+  min-height: 13.68px;
   display: block;
   flex-shrink: 0;
   stroke: currentColor;
@@ -1201,8 +1201,8 @@ function onAccountMenuLogout() {
   font-size: 13px;
   font-weight: 400;
   color: #4e5969;
-  /** 与一级 12px padding + 21.6px 图标槽 + 10px gap 对齐 */
-  padding-left: 43.6px;
+  /** 与一级 12px padding + 20.52px 图标槽 + 10px gap 对齐 */
+  padding-left: 42.52px;
   gap: 0;
 }
 
