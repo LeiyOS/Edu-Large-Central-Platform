@@ -220,16 +220,6 @@ function selectNode(id: string) {
   selectedId.value = id
 }
 
-function onContextBack() {
-  if (historyPast.value.length === 0) {
-    onBack()
-    return
-  }
-  const prev = historyPast.value.pop()!
-  selectedId.value = prev
-  closeTreeMenu()
-}
-
 function findAncestors(
   nodes: TeachNode[],
   target: string,
@@ -372,10 +362,6 @@ onBeforeUnmount(() => {
   teachAsideNarrowMql?.removeEventListener('change', syncTeachAsideViewportNarrowFlag)
 })
 
-function onBack() {
-  showToast('返回上一级（示例）')
-}
-
 function onLinkOutline() {
   showToast('关联大纲（示例）')
 }
@@ -392,14 +378,6 @@ function removeRegionRow(id: string) {
 <template>
   <div class="teach-page">
     <header class="teach-page__context" aria-label="页面导航与位置">
-      <div class="teach-page__ctx-lead">
-        <div class="teach-page__ctx-nav">
-          <button type="button" class="teach-page__ctx-icon-btn" aria-label="返回" @click="onContextBack">
-            <Icon icon="lucide:chevron-left" class="teach-page__ctx-ico" aria-hidden="true" />
-          </button>
-        </div>
-        <span class="teach-page__ctx-vsep" aria-hidden="true" />
-      </div>
       <div class="teach-page__ctx-crumb" aria-current="page">
         <Icon icon="lucide:library" class="teach-page__ctx-lib" aria-hidden="true" />
         <span class="teach-page__ctx-crumb-text">
@@ -723,19 +701,7 @@ function removeRegionRow(id: string) {
   box-sizing: border-box;
 }
 
-/** 侧栏切换、返回与首条竖线 */
-.teach-page__ctx-lead {
-  display: flex;
-  align-items: stretch;
-  flex-shrink: 0;
-  margin-left: -2px;
-}
-
-.teach-page__ctx-nav {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
+/** 侧栏切换按钮（用于标题行） */
 
 .teach-page__ctx-icon-btn {
   display: flex;
@@ -775,15 +741,6 @@ function removeRegionRow(id: string) {
 .teach-page__ctx-ico {
   width: 18px;
   height: 18px;
-}
-
-.teach-page__ctx-vsep {
-  width: 1px;
-  align-self: stretch;
-  min-height: 22px;
-  margin: 8px 6px;
-  background: rgba(15, 23, 42, 0.1);
-  flex-shrink: 0;
 }
 
 .teach-page__ctx-crumb {
